@@ -45,9 +45,12 @@ class ClassFileParser VALUE_OBJ_CLASS_SPEC {
  private:
   bool _need_verify;
   bool _relax_verify;
+  // the class file major version
   u2   _major_version;
+  // the class file minor version
   u2   _minor_version;
   u2   _this_class_index;
+  // the java class name
   Symbol* _class_name;
   ClassLoaderData* _loader_data;
   KlassHandle _host_klass;
@@ -214,6 +217,7 @@ class ClassFileParser VALUE_OBJ_CLASS_SPEC {
   // Constant pool parsing
   void parse_constant_pool_entries(int length, TRAPS);
 
+  // parse the constant pool
   constantPoolHandle parse_constant_pool(TRAPS);
 
   // Interface parsing
@@ -233,6 +237,7 @@ class ClassFileParser VALUE_OBJ_CLASS_SPEC {
                               u2* generic_signature_index_addr,
                               FieldAnnotationCollector* parsed_annotations,
                               TRAPS);
+  // parse field
   Array<u2>* parse_fields(Symbol* class_name,
                           bool is_interface,
                           FieldAllocationCount *fac,
@@ -262,6 +267,7 @@ class ClassFileParser VALUE_OBJ_CLASS_SPEC {
   void parse_linenumber_table(
       u4 code_attribute_length, u4 code_length,
       CompressedLineNumberWriteStream** write_stream, TRAPS);
+  // 解析局部变量表
   u2* parse_localvariable_table(u4 code_length, u2 max_locals, u4 code_attribute_length,
                                 u2* localvariable_table_length,
                                 bool isLVTT, TRAPS);

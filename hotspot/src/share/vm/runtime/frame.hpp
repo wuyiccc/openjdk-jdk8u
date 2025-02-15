@@ -67,9 +67,12 @@ class vframeArray;
 class frame VALUE_OBJ_CLASS_SPEC {
  private:
   // Instance variables:
+  // 栈指针 指向栈顶元素
   intptr_t* _sp; // stack pointer (from Thread::last_Java_sp)
+  // pc指针 指向下一条要执行的指令地址
   address   _pc; // program counter (the next instruction after the call)
 
+  // CodeBlob指针 指向持有响应的指令机器码的CodeBlob
   CodeBlob* _cb; // CodeBlob that "owns" pc
   enum deopt_state {
     not_deoptimized,

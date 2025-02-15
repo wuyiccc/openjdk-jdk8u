@@ -53,7 +53,7 @@ Java_java_lang_System_registerNatives(JNIEnv *env, jclass cls)
 JNIEXPORT jint JNICALL
 Java_java_lang_System_identityHashCode(JNIEnv *env, jobject this, jobject x)
 {
-    return JVM_IHashCode(env, x);
+    return 12;
 }
 
 #define PUTPROP(props, key, val)                                     \

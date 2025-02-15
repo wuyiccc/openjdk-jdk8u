@@ -122,6 +122,10 @@ main(int argc, char **argv)
     margc = argc;
     margv = argv;
 #endif /* WIN32 */
+
+    for (int i = 0; i < margc; i++) {
+        printf("margv[%d] = %s\n", i, margv[i]);
+    }
     return JLI_Launch(margc, margv,
                    sizeof(const_jargs) / sizeof(char *), const_jargs,
                    sizeof(const_appclasspath) / sizeof(char *), const_appclasspath,

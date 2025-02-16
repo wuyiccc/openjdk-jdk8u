@@ -3334,9 +3334,11 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
   Arguments::process_sun_java_launcher_properties(args);
 
   // Initialize the os module before using TLS
+  // 在tls之前初始化os模块
   os::init();
 
   // Initialize system properties.
+  // 初始化jvm系统属性 例如java.vm.version, java.vm.name等等
   Arguments::init_system_properties();
 
   // So that JDK version can be used as a discrimintor when parsing arguments
@@ -3373,6 +3375,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
   TraceTime timer("Create VM", TraceStartupTime);
 
   // Initialize the os module after parsing the args
+  // init2函数初始化
   jint os_init_2_result = os::init_2();
   if (os_init_2_result != JNI_OK) return os_init_2_result;
 
@@ -3387,10 +3390,14 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
 
   // Convert -Xrun to -agentlib: if there is no JVM_OnLoad
   // Must be before create_vm_init_agents()
+
   if (Arguments::init_libraries_at_startup()) {
     convert_vm_init_libraries_to_agents();
   }
-
+  // 加载系统代理库
+  // 通过JVMTI接口, 允许程序员开发自定义代理库, 并通过-agentlib, -agentpath加载到虚拟机中
+  // 如果agent代码将在虚拟机的进程空间中运行, 因此agent代码需要保证多线程安全, 可重入, 避免内存泄露或空指针, 符合
+  // JVMTI和JNI规则等, 如果不小心可能会触发out of memory, 所以我们在做JVM Crash分析的时候, 需要考虑系统库或自定义库bug因素的原因.
   // Launch -agentlib/-agentpath and converted -Xrun agents
   if (Arguments::init_agents_at_startup()) {
     create_vm_init_agents();

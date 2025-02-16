@@ -318,10 +318,12 @@ static const char *unstable_chroot_error = "/proc file system not found.\n"
                      "environment on Linux when /proc filesystem is not mounted.";
 
 void os::Linux::initialize_system_info() {
+  // 设置处理器数量
   set_processor_count(sysconf(_SC_NPROCESSORS_CONF));
   if (processor_count() == 1) {
     pid_t pid = os::Linux::gettid();
     char fname[32];
+    // 初始化proc, 打开/proc/$pid
     jio_snprintf(fname, sizeof(fname), "/proc/%d", pid);
     FILE *fp = fopen(fname, "r");
     if (fp == NULL) {
@@ -330,6 +332,7 @@ void os::Linux::initialize_system_info() {
       fclose(fp);
     }
   }
+  // 获取物理内存大小, 保存在全局变量os::Linux::_physical_memory中
   _physical_memory = (julong)sysconf(_SC_PHYS_PAGES) * (julong)sysconf(_SC_PAGESIZE);
   assert(processor_count() > 0, "linux error");
 }
@@ -5056,6 +5059,7 @@ void os::init(void) {
 
   ThreadCritical::initialize();
 
+  // 设置页大小
   Linux::set_page_size(sysconf(_SC_PAGESIZE));
   if (Linux::page_size() == -1) {
     fatal(err_msg("os_linux.cpp: os::init: sysconf failed (%s)",
@@ -5063,11 +5067,14 @@ void os::init(void) {
   }
   init_page_sizes((size_t) Linux::page_size());
 
+  // 初始化系统信息
   Linux::initialize_system_info();
 
   // _main_thread points to the thread that created/loaded the JVM.
+  // 获取原生主线程的句柄, 获得指向原生线程的指针, 将其保存在全局变量os::Linux::_main_thread中
   Linux::_main_thread = pthread_self();
 
+  // 系统时钟初始化, 从librt.so中装载clock_gettime函数到_clock_gettime全局变量指针中
   Linux::clock_init();
   initial_time_count = javaTimeNanos();
 
@@ -5121,8 +5128,10 @@ void os::pd_init_container_support() {
 // this is called _after_ the global arguments have been parsed
 jint os::init_2(void)
 {
+  // 快速线程时钟初始化
   Linux::fast_thread_clock_init();
 
+  // 使用mmap分配共享内存, 配置大页内存
   // Allocate a single page and mark it as readable for safepoint polling
   address polling_page = (address) ::mmap(NULL, Linux::page_size(), PROT_READ, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
   guarantee( polling_page != MAP_FAILED, "os::init_2: failed to allocate polling page" );
@@ -5151,9 +5160,11 @@ jint os::init_2(void)
     return JNI_ERR;
   }
 
+  // 初始化内核信号, 安装信号处理函数SR_Handler
   Linux::signal_sets_init();
   Linux::install_signal_handlers();
 
+  // 配置线程栈, 设置栈大小, 分配线程初始栈
   // Check minimum allowable stack size for thread creation and to initialize
   // the java system classes, including StackOverflowError - depends on page
   // size.  Add a page for compiler2 recursion in main thread.
@@ -5224,6 +5235,7 @@ jint os::init_2(void)
   }
 
   if (MaxFDLimit) {
+    // 设置文件描述符数量
     // set the number of file descriptors to max. print out error
     // if getrlimit/setrlimit fails but continue regardless.
     struct rlimit nbr_files;
@@ -5240,7 +5252,7 @@ jint os::init_2(void)
       }
     }
   }
-
+  // 初始化时钟, 用来串行化线程创建
   // Initialize lock used to serialize thread creation (see os::create_thread)
   Linux::set_createThread_lock(new Mutex(Mutex::leaf, "createThread_lock", false));
 
@@ -5248,7 +5260,7 @@ jint os::init_2(void)
   // atexit functions are called on return from main or as a result of a
   // call to exit(3C). There can be only 32 of these functions registered
   // and atexit() does not set errno.
-
+  // 如果开启VM选项PerfAllowAtExitRegistration, 则向系统注册atexit函数
   if (PerfAllowAtExitRegistration) {
     // only register atexit functions if PerfAllowAtExitRegistration is set.
     // atexit functions can be delayed until process exit time, which
@@ -5264,6 +5276,7 @@ jint os::init_2(void)
   }
 
   // initialize thread priority policy
+  // 初始化线程优先级策略
   prio_init();
 
   return JNI_OK;

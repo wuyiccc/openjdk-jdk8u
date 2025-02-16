@@ -56,12 +56,14 @@ class CMSIsAliveClosure;
 class PSPromotionManager;
 class ParCompactionManager;
 
+// OOPS抽象基类
 class oopDesc {
   friend class VMStructs;
  private:
   volatile markOop  _mark;
   union _metadata {
     Klass*      _klass;
+    // junit 32位压缩指针
     narrowKlass _compressed_klass;
   } _metadata;
 

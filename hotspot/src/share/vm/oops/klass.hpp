@@ -113,7 +113,7 @@ class Klass : public Metadata {
   // distinct bytes, as follows:
   //    MSB:[tag, hsz, ebt, log2(esz)]:LSB
   // where:
-  //    tag is 0x80 if the elements are oops, 0xC0 if non-oops
+  //    tag is 0x80 if the elements are oops(对象类型), 0xC0 if non-oops(基本数据类型)
   //    hsz is array header size in bytes (i.e., offset of first element)
   //    ebt is the BasicType of the elements
   //    esz is the element size in bytes
@@ -127,6 +127,11 @@ class Klass : public Metadata {
   //
   // Final note:  This comes first, immediately after C++ vtable,
   // because it is frequently queried.
+  // 对象布局的综合描述符, 如果不是InstanceKlass或ArrayKlass, 值为0
+  // 对于InstanceKlass或者ArrayKlass, 这个值是一个组合数字
+  // 对于InstanceKlass而言, 组合数字中包含表示对象的以字节为单位的内存占用量
+  // 由于InstanceKlass实例能够表示Java类, 因此这里指的内存占用量是指这个Java类创建的对象所需要的内存
+  // 对于ArrayKlass而言, _layout_helper是一个负数, 组合数字中包含tag, hsize, etype和esize四部分, 具体怎么组合和解析由子类实现
   jint        _layout_helper;
 
   // The fields _super_check_offset, _secondary_super_cache, _secondary_supers
@@ -135,25 +140,40 @@ class Klass : public Metadata {
   //
   // Where to look to observe a supertype (it is &_secondary_super_cache for
   // secondary supers, else is &_primary_supers[depth()].
+  // 快速查找supertype的一个偏移量, 这个偏移量是相对于Klass实例起始地址的一个偏移量
+  // 如果当前类是IOException, 那么这个属性就指向_primary_supers数组中存储的IOException的位置
+  // 当存储的类多余8个的时候, 值与_secondary_super_cache相等
   juint       _super_check_offset;
 
   // Class name.  Instance classes: java/lang/String, etc.  Array classes: [I,
   // [Ljava/lang/String;, etc.  Set to zero for all other kinds of classes.
+  // 类名
   Symbol*     _name;
 
   // Cache of last observed secondary supertype
+  // 保存上一次查询父类的结果
   Klass*      _secondary_super_cache;
   // Array of all secondary supertypes
+  // Klass指针数组, 一般存储java类实现的接口, 偶尔还会存储Java类及其父类
   Array<Klass*>* _secondary_supers;
   // Ordered list of all primary supertypes
+  // 当前klass的父类, 这是一个Klass数组, 存储的是父类的层级
+  // 比如IOException对应的Klass在这里存储的就是
+  // [Throwable, Exception, IOException]
+  // 这个数组长度限制为8, 如果多余8个(_primary_super_limit默认值, 可以修改),
+  // 那么多的类会存储到_secondary_supers数组中
   Klass*      _primary_supers[_primary_super_limit];
   // java/lang/Class instance mirroring this class
+  // oopDesc*类型, 保存的是当前Klass实例表示的Java类所对应的java.lang.Class对象, 可以据此访问类的静态属性
   oop       _java_mirror;
   // Superclass
+  // 指向Java类的直接父类
   Klass*      _super;
   // First subclass (NULL if none); _subklass->next_sibling() is next one
+  // 指向Java类的直接子类(第一个子类)
   Klass*      _subklass;
   // Sibling link (or NULL); links all subklasses of a klass
+  // 当前类的兄弟类(有相同的父类), 利用_subklass->next_sibling()获取_subklass的兄弟子类
   Klass*      _next_sibling;
 
   // All klasses loaded by a class loader are chained through these links
@@ -161,14 +181,17 @@ class Klass : public Metadata {
 
   // The VM's representation of the ClassLoader used to load this class.
   // Provide access the corresponding instance java.lang.ClassLoader.
+  // Klass指针, classLoader加载的下一个Klass
   ClassLoaderData* _class_loader_data;
 
   jint        _modifier_flags;  // Processed access flags, for use by Class.getModifiers.
+  // 保存java类的修饰符, 如private, final, static, abstract, native等
   AccessFlags _access_flags;    // Access flags. The class/interface distinction is stored here.
 
   // Biased locking implementation and statistics
   // (the 64-bit chunk goes first, to avoid some fragmentation)
   jlong    _last_biased_lock_bulk_revocation_time;
+  // 默认对象头, 与锁相关, 提供OopDesc的初始化数据
   markOop  _prototype_header;   // Used when biased locking is both enabled and disabled for this type
   jint     _biased_lock_revocation_count;
 

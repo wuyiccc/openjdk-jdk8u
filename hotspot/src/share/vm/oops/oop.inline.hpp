@@ -67,11 +67,11 @@
 inline void oopDesc::release_set_mark(markOop m) {
   OrderAccess::release_store_ptr(&_mark, m);
 }
-
+// 设置mark word
 inline markOop oopDesc::cas_set_mark(markOop new_mark, markOop old_mark) {
   return (markOop) Atomic::cmpxchg_ptr(new_mark, &_mark, old_mark);
 }
-
+// 获取对象对应的类型klass
 inline Klass* oopDesc::klass() const {
   if (UseCompressedClassPointers) {
     return Klass::decode_klass_not_null(_metadata._compressed_klass);

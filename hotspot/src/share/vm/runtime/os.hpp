@@ -443,14 +443,21 @@ class os: AllStatic {
   static void block_on_serialize_page_trap();
 
   // threads
-
+  // 线程类型定义
   enum ThreadType {
+    // VM线程
     vm_thread,
+    // 并发GC线程
     cgc_thread,        // Concurrent GC thread
+    // 并行GC线程
     pgc_thread,        // Parallel GC thread
+    // Java线程
     java_thread,
+    // 编译器线程
     compiler_thread,
+    // watcher线程
     watcher_thread,
+    // OS线程
     os_thread
   };
 

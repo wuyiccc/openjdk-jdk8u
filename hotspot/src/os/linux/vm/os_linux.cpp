@@ -844,6 +844,7 @@ static void *java_start(Thread *thread) {
     }
   }
 
+  // 调用thread的run方法
   // call one more level start routine
   thread->run();
 
@@ -919,6 +920,7 @@ bool os::create_thread(Thread* thread, ThreadType thr_type, size_t stack_size) {
     }
 
     pthread_t tid;
+    // 利用pthread_create创建线程
     int ret = pthread_create(&tid, &attr, (void* (*)(void*)) java_start, thread);
 
     pthread_attr_destroy(&attr);

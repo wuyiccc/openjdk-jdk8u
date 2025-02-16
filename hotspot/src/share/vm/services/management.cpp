@@ -80,9 +80,15 @@ TimeStamp Management::_stamp;
 
 void management_init() {
 #if INCLUDE_MANAGEMENT
+  // 启动名为Service Thread的守护进程, hotspot实战jdk7中描述, jdk8中好像没看到相关的代码
   Management::init();
+  // 提供线程和内部同步系统的性能监控和管理服务
+  // 包括维护线程列表, 线程相关的性能统计, 线程快照, 线程堆栈跟踪和线程转储等功能
   ThreadService::init();
+  // RuntimeService模块, 提供线程和内部同步系统的性能监控和管理服务
+  // 如applicationTime, jvmCapabilities
   RuntimeService::init();
+  // 提供类加载模块的性能和管理服务
   ClassLoadingService::init();
 #else
   ThreadService::init();

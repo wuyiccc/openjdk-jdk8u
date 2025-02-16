@@ -989,7 +989,6 @@ bool Thread::set_as_starting_thread() {
  // NOTE: this must be called inside the main thread.
   return os::create_main_thread((JavaThread*)this);
 }
-
 static void initialize_class(Symbol* class_name, TRAPS) {
   Klass* klass = SystemDictionary::resolve_or_fail(class_name, true, CHECK);
   InstanceKlass::cast(klass)->initialize(CHECK);
@@ -1582,6 +1581,7 @@ JavaThread::JavaThread(ThreadFunction entry_point, size_t stack_sz) :
   set_entry_point(entry_point);
   // Create the native thread itself.
   // %note runtime_23
+  // JavaThread的线程类型是java线程
   os::ThreadType thr_type = os::java_thread;
   thr_type = entry_point == &compiler_thread_entry ? os::compiler_thread :
                                                      os::java_thread;
@@ -3409,21 +3409,26 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
   _number_of_non_daemon_threads = 0;
 
   // Initialize global data structures and create system classes in heap
+  // 初始化全局数据结构
   vm_init_globals();
 
   // Attach the main thread to this os thread
+  // 创建java_thread类型的线程, 初始线程状态为_thread_new
   JavaThread* main_thread = new JavaThread();
+  // 设置线程状态为_thread_in_vm, 表明该线程正处于jvm执行的状态
   main_thread->set_thread_state(_thread_in_vm);
   // must do this before set_active_handles and initialize_thread_local_storage
   // Note: on solaris initialize_thread_local_storage() will (indirectly)
   // change the stack size recorded here to one based on the java thread
   // stacksize. This adjusted size is what is used to figure the placement
   // of the guard pages.
+  // 记录线程栈的基址和大小
   main_thread->record_stack_base_and_size();
+  // 初始化线程本地存储区tls
   main_thread->initialize_thread_local_storage();
-
+  // 为线程设置jni句柄
   main_thread->set_active_handles(JNIHandleBlock::allocate_block());
-
+  // 将通过OS模块创建原始线程, 即OS主线程, 并设置为可运行状态
   if (!main_thread->set_as_starting_thread()) {
     vm_shutdown_during_initialization(
       "Failed necessary internal allocation. Out of swap space");
@@ -3431,7 +3436,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
     *canTryAgain = false; // don't let caller call JNI_CreateJavaVM again
     return JNI_ENOMEM;
   }
-
+  // 初始化主线程栈
   // Enable guard page *after* os::create_main_thread(), otherwise it would
   // crash Linux VM, see notes in os_linux.cpp.
   main_thread->create_stack_guard_pages();
@@ -3440,6 +3445,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
   ObjectMonitor::Initialize() ;
 
   // Initialize global modules
+  // 初始化全局模块
   jint status = init_globals();
   if (status != JNI_OK) {
     delete main_thread;
@@ -3467,6 +3473,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
     VMThread::create();
     Thread* vmthread = VMThread::vm_thread();
 
+    // 这里底层会调用pthread_create创建原生线程
     if (!os::create_thread(vmthread, os::vm_thread))
       vm_exit_during_initialization("Cannot create VM thread. Out of system resources.");
 
@@ -3520,10 +3527,12 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
     Handle thread_group = create_initial_thread_group(CHECK_0);
     Universe::set_main_thread_group(thread_group());
     initialize_class(vmSymbols::java_lang_Thread(), CHECK_0);
+    // 创建java.lang.Thread线程
     oop thread_object = create_initial_thread(thread_group, main_thread, CHECK_0);
     main_thread->set_threadObj(thread_object);
     // Set thread status to running since main thread has
     // been started and running.
+    // 设置java层main线程的状态为RUNNABLE
     java_lang_Thread::set_thread_status(thread_object,
                                         java_lang_Thread::RUNNABLE);
 

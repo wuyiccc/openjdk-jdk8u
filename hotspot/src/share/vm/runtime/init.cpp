@@ -84,35 +84,47 @@ void ostream_exit();
 
 void vm_init_globals() {
   check_ThreadShadow();
+  // 初始化java基本类型系统
   basic_types_init();
+  // 初始化全局事件缓存区, 初始化事件队列
   eventlog_init();
+  // 初始化全局锁
   mutex_init();
+  // 初始化ChunkPool, ChunkPool包括3个静态pool链表, _large_pool, _medium_pool, _small_pool
+  // 这是hotspot实现的内存池, 系统全局不会执行malloc/free操作, 这样就能够有效避免malloc/free的抖动影响
+  // 内存池是系统设计的常用手段
   chunkpool_init();
+  // 初始化jvm性能统计数据Perf Data区
   perfMemory_init();
 }
 
 
 jint init_globals() {
   HandleMark hm;
+  // jmx management模块
   management_init();
   bytecodes_init();
   classLoader_init();
+  // code cache 代码高速缓存, 主要用来生成和存储本地代码, 这些代码片段包括已编译好的java方法和RuntimeStubs
   codeCache_init();
   VM_Version_init();
   os_init_globals();
   stubRoutines_init1();
+  // universe模块初始化1
   jint status = universe_init();  // dependent on codeCache_init and
                                   // stubRoutines_init1 and metaspace_init.
   if (status != JNI_OK)
     return status;
-
+  // 初始化解释器
   interpreter_init();  // before any methods loaded
   invocationCounter_init();  // before any methods loaded
   marksweep_init();
   accessFlags_init();
+  // 初始化模板表模块
   templateTable_init();
   InterfaceSupport_init();
   SharedRuntime::generate_stubs();
+  // universe模块初始化2
   universe2_init();  // dependent on codeCache_init and stubRoutines_init1
   referenceProcessor_init();
   jni_handles_init();

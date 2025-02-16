@@ -82,7 +82,9 @@ typedef jint (JNICALL *GetDefaultJavaVMInitArgs_t)(void *args);
 typedef jint (JNICALL *GetCreatedJavaVMs_t)(JavaVM **vmBuf, jsize bufLen, jsize *nVMs);
 
 typedef struct {
+    // 对应JNI_CreateJavaVM
     CreateJavaVM_t CreateJavaVM;
+    // 对应JNI_GetDefaultJavaVMInitArgs
     GetDefaultJavaVMInitArgs_t GetDefaultJavaVMInitArgs;
     GetCreatedJavaVMs_t GetCreatedJavaVMs;
 } InvocationFunctions;

@@ -1902,24 +1902,29 @@ struct JNIInvokeInterface_ {
 
     jint (JNICALL *AttachCurrentThreadAsDaemon)(JavaVM *vm, void **penv, void *args);
 };
-
+// 提供了管理jvm的方法
 struct JavaVM_ {
     const struct JNIInvokeInterface_ *functions;
 #ifdef __cplusplus
 
+    // jni_DestroyJavaVM
     jint DestroyJavaVM() {
         return functions->DestroyJavaVM(this);
     }
+    // jni_AttachCurrentThread
     jint AttachCurrentThread(void **penv, void *args) {
         return functions->AttachCurrentThread(this, penv, args);
     }
+    // jni_xxx
     jint DetachCurrentThread() {
         return functions->DetachCurrentThread(this);
     }
 
+    // jni_GetEnv
     jint GetEnv(void **penv, jint version) {
         return functions->GetEnv(this, penv, version);
     }
+    // jni_xxx
     jint AttachCurrentThreadAsDaemon(void **penv, void *args) {
         return functions->AttachCurrentThreadAsDaemon(this, penv, args);
     }

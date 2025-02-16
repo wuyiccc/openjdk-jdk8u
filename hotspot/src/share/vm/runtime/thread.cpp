@@ -4017,15 +4017,23 @@ bool Threads::destroy_vm() {
     HandleMark rm(thread);
     Universe::run_finalizers_on_exit();
   } else {
+    // 调用java层面的java.lang.Shutdown,shutdown()函数
     // run Java level shutdown hooks
     thread->invoke_shutdown_hooks();
   }
 
+  // 为jvm退出做一些准备工作,
+  // 运行jvm层的关闭钩子(shutdown hooks), 这些钩子函数是通过JVM_OnExit进行注册的
+  // 目前唯一使用了这套机制的钩子函数是File.deleteOnExit()
+  // 然后就是停止一些系统线程, 如StatSampler, watcher thread, CMS threads
+  // 并向JVMTI发送thread end, vm death事件, 最后停止信号线程
   before_exit(thread);
 
+  // 调用JavaThread:exit()函数, 这将释放JNI语句块, 并从线程列表中移出本线程
   thread->exit(true);
 
   // Stop VM thread.
+  // 停止虚拟机线程, 使虚拟机进入安全点safepoint, 并停止编译器线程
   {
     // 4945125 The vm thread comes to a safepoint during exit.
     // GC vm_operations can get caught at the safepoint, and the
@@ -4052,20 +4060,23 @@ bool Threads::destroy_vm() {
   // will be stopped at native=>Java/VM barriers. Note that we can't
   // simply kill or suspend them, as it is inherently deadlock-prone.
 
+  // 禁用JNI/JVM跟踪
 #ifndef PRODUCT
   // disable function tracing at JNI/JVM barriers
   TraceJNICalls = false;
   TraceJVMCalls = false;
   TraceRuntimeCalls = false;
 #endif
-
+  // 为那些仍然运行本地代码的线程设置_vm_exited标记
   VM_Exit::set_vm_exited();
 
   notify_vm_shutdown();
 
+  // 删除当前线程
   delete thread;
 
   // exit_globals() will delete tty
+  // 删除tty和PerfMemory等资源
   exit_globals();
 
   return true;

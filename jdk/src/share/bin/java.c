@@ -250,6 +250,7 @@ JLI_Launch(int argc, char ** argv,              /* main argc, argc */
         start = CounterGet();
     }
 
+    // 为ifn里面的函数指针赋值
     if (!LoadJavaVM(jvmpath, &ifn)) {
         return(6);
     }
@@ -350,6 +351,7 @@ JLI_Launch(int argc, char ** argv,              /* main argc, argc */
         } \
     } while (JNI_FALSE)
 
+// 被JavaMain线程调用, args是java main函数的args参数
 int JNICALL
 JavaMain(void * _args)
 {
@@ -373,6 +375,7 @@ JavaMain(void * _args)
 
     /* Initialize the virtual machine */
     start = CounterGet();
+    // 初始化jvm, 为JavaVM类型的成员赋值, 为JNIEnv的成员赋值, 为InvocationFunctions赋值
     if (!InitializeJVM(&vm, &env, &ifn)) {
         JLI_ReportErrorMessage(JVM_ERROR1);
         exit(1);
@@ -441,6 +444,7 @@ JavaMain(void * _args)
      * This method also correctly handles launching existing JavaFX
      * applications that may or may not have a Main-Class manifest entry.
      */
+    // 加载程序运行的时候的主类
     mainClass = LoadMainClass(env, mode, what);
     CHECK_EXCEPTION_NULL_LEAVE(mainClass);
     /*
@@ -466,6 +470,7 @@ JavaMain(void * _args)
      * is not required. The main method is invoked here so that extraneous java
      * stacks are not in the application stack trace.
      */
+    // 获取应用主方法
     mainID = (*env)->GetStaticMethodID(env, mainClass, "main",
                                        "([Ljava/lang/String;)V");
     CHECK_EXCEPTION_NULL_LEAVE(mainID);
@@ -475,6 +480,7 @@ JavaMain(void * _args)
     CHECK_EXCEPTION_NULL_LEAVE(mainArgs);
 
     /* Invoke main method. */
+    // 对Java应用程序的main方法的调用, mainArgs是java main方法需要传入的参数
     (*env)->CallStaticVoidMethod(env, mainClass, mainID, mainArgs);
 
     /*
@@ -482,6 +488,7 @@ JavaMain(void * _args)
      * System.exit) will be non-zero if main threw an exception.
      */
     ret = (*env)->ExceptionOccurred(env) == NULL ? 0 : 1;
+    // 销毁jvm然后退出, detach主线程+DestroyJVM, 与主线程断开连接
     LEAVE();
 }
 

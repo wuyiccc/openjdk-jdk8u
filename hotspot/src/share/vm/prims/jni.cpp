@@ -1327,6 +1327,7 @@ static void jni_invoke_static(JNIEnv *env, JavaValue* result, jobject receiver, 
   // Initialize result type
   result->set_type(args->get_ret_type());
 
+  // 在hotspot中, 所有对java方法的调用都需要通过类JavaCalls来完成
   // Invoke the method. Result is returned as oop.
   JavaCalls::call(result, method, &java_args, CHECK);
 
@@ -2522,6 +2523,7 @@ JNI_ENTRY(void, jni_CallStaticVoidMethod(JNIEnv *env, jclass cls, jmethodID meth
   va_start(args, methodID);
   JavaValue jvalue(T_VOID);
   JNI_ArgumentPusherVaArg ap(methodID, args);
+  // 在这里里面调用JavaCalls的相关方法完成对java方法的调用
   jni_invoke_static(env, &jvalue, NULL, JNI_STATIC, methodID, &ap, CHECK);
   va_end(args);
 JNI_END
@@ -5237,6 +5239,7 @@ _JNI_IMPORT_OR_EXPORT_ jint JNICALL JNI_CreateJavaVM(JavaVM **vm, void **penv, v
    */
   bool can_try_again = true;
 
+  // JNI_CreateJavaVM函数调用了Threads模块的create_vm完成最终的虚拟机的创建和初始化工作
   result = Threads::create_vm((JavaVMInitArgs*) args, &can_try_again);
   if (result == JNI_OK) {
     JavaThread *thread = JavaThread::current();

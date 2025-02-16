@@ -896,6 +896,7 @@ LoadJavaVM(const char *jvmpath, InvocationFunctions *ifn)
         return JNI_FALSE;
     }
 
+    // 从libjvm的库中找到JNI_CreateJavaVM方法(jni.cpp)
     ifn->CreateJavaVM = (CreateJavaVM_t)
         dlsym(libjvm, "JNI_CreateJavaVM");
     if (ifn->CreateJavaVM == NULL) {
@@ -1040,6 +1041,7 @@ ContinueInNewThread0(int (JNICALL *continuation)(void *), jlong stack_size, void
       pthread_attr_setstacksize(&attr, stack_size);
     }
 
+    // 创建一个线程执行JavaMain方法
     if (pthread_create(&tid, &attr, (void *(*)(void*))continuation, (void*)args) == 0) {
       void * tmp;
       pthread_join(tid, &tmp);
@@ -1089,6 +1091,7 @@ JVMInit(InvocationFunctions* ifn, jlong threadStackSize,
         int mode, char *what, int ret)
 {
     ShowSplashScreen();
+    // Launcher启动jvm线程
     return ContinueInNewThread(ifn, threadStackSize, argc, argv, mode, what, ret);
 }
 

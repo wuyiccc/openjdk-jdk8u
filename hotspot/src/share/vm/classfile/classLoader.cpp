@@ -636,6 +636,7 @@ void ClassLoader::check_shared_classpath(const char *path) {
 
 void ClassLoader::setup_bootstrap_search_path() {
   assert(_first_entry == NULL, "should not setup bootstrap class search path twice");
+  // 设置bootstrap加载的class文件路径
   const char* sys_class_path = Arguments::get_sysclasspath();
   if (PrintSharedArchiveAndExit) {
     // Don't print sys_class_path - this is the bootcp of this current VM process, not necessarily

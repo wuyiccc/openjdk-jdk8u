@@ -360,10 +360,13 @@ protected:
     _lh_header_size_mask        = right_n_bits(BitsPerByte),  // shifted mask
     _lh_array_tag_bits          = 2,
     _lh_array_tag_shift         = BitsPerInt - _lh_array_tag_bits,
+    // 0x 0000 0000 0000 0000 0000 0000 0000 0001
+    // ->
+    // 0x 1111 1111 1111 1111 1111 1111 1111 1110 == 0x 1000 0000 0000 0000 0000 0000 0000 0000 >> 30 (负数右移补1)
     _lh_array_tag_obj_value     = ~0x01   // 0x80000000 >> 30
   };
 
-  static const unsigned int _lh_array_tag_type_value = 0Xffffffff; // ~0x00,  // 0xC0000000 >> 30
+  static const unsigned int _lh_array_tag_type_value = 0Xffffffff; // ~0x00,  // 0xC0000000 >> 30 // 0x 1100 0000 0000 0000 0000 0000 0000 0000
 
   static int layout_helper_size_in_bytes(jint lh) {
     assert(lh > (jint)_lh_neutral_value, "must be instance");

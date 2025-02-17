@@ -213,10 +213,14 @@ Klass::Klass() {
 jint Klass::array_layout_helper(BasicType etype) {
   assert(etype >= T_BOOLEAN && etype <= T_OBJECT, "valid etype");
   // Note that T_ARRAY is not allowed here.
+  // 数组头部元素的字节数 一般来说 = 12(metadata) + 4(length) = 16字节
   int  hsize = arrayOopDesc::base_offset_in_bytes(etype);
+  // java基本类型元素所需要占用的字节数 int类型占用4byte
   int  esize = type2aelembytes(etype);
   bool isobj = (etype == T_OBJECT);
+  // 如果数组元素的类型为对象类型, 则值为 ~0x01, 否则为0Xffffffff
   int  tag   =  isobj ? _lh_array_tag_obj_value : _lh_array_tag_type_value;
+  // 经过位移计算, 负数的值恰好是数组类型 10(代表对象类型数组) 11(代表java类型数组)
   int lh = array_layout_helper(tag, hsize, etype, exact_log2(esize));
 
   assert(lh < (int)_lh_neutral_value, "must look like an array layout");

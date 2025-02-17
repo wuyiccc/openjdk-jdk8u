@@ -48,6 +48,7 @@ class arrayOopDesc : public oopDesc {
   // The header is considered the oop part of this type plus the length.
   // Returns the aligned header_size_in_bytes.  This is not equivalent to
   // sizeof(arrayOopDesc) which should not appear in the code.
+  //
   static int header_size_in_bytes() {
     size_t hs = align_size_up(length_offset_in_bytes() + sizeof(int),
                               HeapWordSize);

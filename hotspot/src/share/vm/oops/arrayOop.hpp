@@ -62,6 +62,7 @@ class arrayOopDesc : public oopDesc {
   }
 
  public:
+  // 这里注释说明了如何计算length部分的存储地址偏移量, 如果开启了压缩指针那么length部分占据了_metadata._klass部分8字节中后半部分4字节的数据
   // The _length field is not declared in C++.  It is allocated after the
   // declared nonstatic fields in arrayOopDesc if not compressed, otherwise
   // it occupies the second half of the _klass field in oopDesc.
@@ -83,6 +84,7 @@ class arrayOopDesc : public oopDesc {
   // Tells whether index is within bounds.
   bool is_within_bounds(int index) const        { return 0 <= index && index < length(); }
 
+  // 这里length的存储地址, 如果是压缩了指针, 那么length会存储在_metadata union联合体中剩余后半部分4字节的数据
   // Accessors for instance variable which is not a C++ declared nonstatic
   // field.
   int length() const {

@@ -219,6 +219,7 @@ jint Klass::array_layout_helper(BasicType etype) {
   int  esize = type2aelembytes(etype);
   bool isobj = (etype == T_OBJECT);
   // 如果数组元素的类型为对象类型, 则值为 ~0x01, 否则为0Xffffffff
+  //  0x 1111 1111 1111 1111 1111 1111 1111 1110 : 0x 1111 1111 1111 1111 1111 1111 1111 1111
   int  tag   =  isobj ? _lh_array_tag_obj_value : _lh_array_tag_type_value;
   // 经过位移计算, 负数的值恰好是数组类型 10(代表对象类型数组) 11(代表java类型数组)
   int lh = array_layout_helper(tag, hsize, etype, exact_log2(esize));

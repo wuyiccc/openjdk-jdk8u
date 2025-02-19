@@ -98,6 +98,13 @@ const int BytesPerInt        = 1 << LogBytesPerInt;
 const int BytesPerWord       = 1 << LogBytesPerWord;
 const int BytesPerLong       = 1 << LogBytesPerLong;
 
+/**
+** 数据类型所占用的bit数量 = 每字节占用的bit数量 * 数据类型占用的字节数量
+** log(数据类型所占用的bit数量) = log(每字节占用的bit数量 * 数据类型占用的字节数量)
+** log(数据类型所占用的bit数量) = log(每字节占用的bit数量) + log(数据类型占用的字节数量)
+** LogBitsPer数据类型 = LogBitsPerByte + LogBytesPer数据类型
+**/
+
 const int LogBitsPerByte     = 3;
 const int LogBitsPerShort    = LogBitsPerByte + LogBytesPerShort;
 const int LogBitsPerInt      = LogBitsPerByte + LogBytesPerInt;

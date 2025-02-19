@@ -359,6 +359,7 @@ protected:
     _lh_header_size_shift       = BitsPerByte*2,
     _lh_header_size_mask        = right_n_bits(BitsPerByte),  // shifted mask
     _lh_array_tag_bits          = 2,
+    // 32 - 2 = 30
     _lh_array_tag_shift         = BitsPerInt - _lh_array_tag_bits,
     // 0x 0000 0000 0000 0000 0000 0000 0000 0001
     // ->
@@ -425,6 +426,11 @@ protected:
     return l2esz;
   }
   static jint array_layout_helper(jint tag, int hsize, BasicType etype, int log2_esize) {
+    // tag的值占头2位 + hize占据接下来的14位 + etype占据接下来的8位 + log2_eszie占据最后的8位
+    // tag << 30 ==> 对象是 1000 0000 0000 0000 0000 0000 0000 0000 普通数据类型是 1100 0000 0000 0000 0000 0000 0000 0000
+    // | hsize << 16
+    // | 4(Boolean) << 8
+    // | 0 << 0
     return (tag        << _lh_array_tag_shift)
       |    (hsize      << _lh_header_size_shift)
       |    ((int)etype << _lh_element_type_shift)

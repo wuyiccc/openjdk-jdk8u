@@ -21,6 +21,7 @@
  * questions.
  *
  */
+#include <string>
 
 #include "precompiled.hpp"
 #include "classfile/javaClasses.hpp"
@@ -244,36 +245,62 @@ bool Klass::can_be_primary_super_slow() const {
     return true;
 }
 
+// 初始化父类信息
 void Klass::initialize_supers(Klass* k, TRAPS) {
   if (FastSuperclassLimit == 0) {
     // None of the other machinery matters.
     set_super(k);
     return;
   }
+//    if (strcmp(name()->as_C_string(), "Test$TestZero") == 0) {
+//        int x = 10;
+//    }
+//    if (strcmp(name()->as_C_string(), "Test$A") == 0
+//        || strcmp(name()->as_C_string(), "Test$B") == 0
+//        || strcmp(name() -> as_C_string(), "Test$C") == 0
+//        || strcmp(name() -> as_C_string(), "Test$D") == 0){
+//        int x = 10;
+//    }
+
+
+    // 如果父类为null, 说明当前类可能为Object, 或者基本数据类型数组, 例如int[], char[]等等
   if (k == NULL) {
     set_super(NULL);
     _primary_supers[0] = this;
     assert(super_depth() == 0, "Object must already be initialized properly");
   } else if (k != super() || k == SystemDictionary::Object_klass()) {
+    // 一般情况下普通对象继承关系满足 k != super(), super() == NULL 即判断条件1
+    // Type[] 数组满足 k(Object[]) != super()(Object), 同样满足条件1, 不过此时super() = Object != NULL
+    // 只有Object[]数组满足super()为Object对象, 且k=Object, 即判断条件2
     assert(super() == NULL || super() == SystemDictionary::Object_klass(),
            "initialize this only once to a non-trivial value");
     set_super(k);
+    // 设置klass的_super属性
     Klass* sup = k;
+    // 获取父类的深度: 如果super为Object, 因为Object没有父类, 所以Object的super_depth为0
     int sup_depth = sup->super_depth();
+    // 调用primary_super_limit函数得到的默认值为8
     juint my_depth  = MIN2(sup_depth + 1, (int)primary_super_limit());
+    // 如果当前类不能作为主父类
     if (!can_be_primary_super_slow())
+      // 将深度设置为primary_super_limit
       my_depth = primary_super_limit();
     for (juint i = 0; i < my_depth; i++) {
+      // 复制父类的主父类数组到当前类的主父类数组
       _primary_supers[i] = sup->_primary_supers[i];
     }
     Klass* *super_check_cell;
     if (my_depth < primary_super_limit()) {
+      // 如果当前类的深度小于primary_super_limit, 则将当前类添加到主父类数组中
       _primary_supers[my_depth] = this;
       super_check_cell = &_primary_supers[my_depth];
     } else {
       // Overflow of the primary_supers array forces me to be secondary.
+      // 如果主父类数组溢出, 将当前类设置为二级父类
       super_check_cell = &_secondary_super_cache;
     }
+    // 设置Klass类中_super_check_offset的值
+    // 即存储this地址的相对偏移量的位置
     set_super_check_offset((address)super_check_cell - (address) this);
 
 #ifdef ASSERT
@@ -358,7 +385,7 @@ void Klass::initialize_supers(Klass* k, TRAPS) {
       assert(s2->at(j) != NULL, "correct bootstrapping order");
     }
   #endif
-
+    // 设置_secondary_supers属性
     this_kh->set_secondary_supers(s2);
   }
 }

@@ -29,6 +29,8 @@
 #include "classfile/classLoaderExt.hpp"
 #include "classfile/classLoaderData.inline.hpp"
 #include "classfile/javaClasses.hpp"
+#include <iostream>
+#include <string>
 #if INCLUDE_CDS
 #include "classfile/sharedPathsMiscInfo.hpp"
 #include "classfile/sharedClassUtil.hpp"
@@ -1140,6 +1142,9 @@ objArrayOop ClassLoader::get_system_packages(TRAPS) {
 instanceKlassHandle ClassLoader::load_classfile(Symbol* h_name, TRAPS) {
   ResourceMark rm(THREAD);
   const char* class_name = h_name->as_C_string();
+  if (strcmp(class_name, "Test$TestZero") == 0) {
+    int x = 10;
+  }
   EventMark m("loading class %s", class_name);
   ThreadProfilerMark tpm(ThreadProfilerMark::classLoaderRegion);
 

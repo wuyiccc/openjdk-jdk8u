@@ -136,6 +136,16 @@ class OopMapBlock VALUE_OBJ_CLASS_SPEC {
 
 struct JvmtiCachedClassFileData;
 
+// InstanceKlass不包括java数组类型
+// c++与java不同的是, c++存储一些属性的值并不需要明确在类中定义这个属性, 它可以通过分配完内存之后, 通过偏移量的方式来获取属性的值
+// 比如 vtable: java虚函数表, 大小等于_vtable_len
+// itable: java接口函数表, 大小等于_itable_len
+// 非静态OopMapBlock: 大小等于_nonstatic_oop_map_size, 当前类也会继承父类的属性, 因此同样可能需要保存父类的OopMapBlock信息,
+// 这样当前的Klass实例可能会含有多个OopMapBlock.
+// GC在回收垃圾的时候, 如果遍历某个对象所引用的其他对象, 则会依据此信息进行查找
+// 接口的实现类: 只有当前Klass实例表示一个接口的时候才存在这个信息, 如果接口没有任何实现类，则为NULL, 如果只有一个实现类, 则为该实现类的Klass指针，
+// 如果有多个实现类，则为当前接口本身
+// host_klass: 在在匿名类中存在, 为了支持jsr292中的动态语言特性, 会给匿名类生成一个host_klass
 class InstanceKlass: public Klass {
   friend class VMStructs;
   friend class ClassFileParser;
@@ -186,8 +196,11 @@ class InstanceKlass: public Klass {
   // Annotations for this class
   Annotations*    _annotations;
   // Array classes holding elements of this class.
+  // 该指针指向以当前klass实例为数组成员的数组klass实例
+  // 比如当前klass为Object, 那么_array_klasses就是指向 Object[]对应的klass实例
   Klass*          _array_klasses;
   // Constant pool for this class.
+  // ConstantPool类型的指针, 用来指向保存常量池信息的ConstantPool实例
   ConstantPool* _constants;
   // The InnerClasses attribute and EnclosingMethod attribute. The
   // _inner_classes is an array of shorts. If the class has InnerClasses
@@ -208,20 +221,32 @@ class InstanceKlass: public Klass {
   char*           _source_debug_extension;
   // Array name derived from this class which needs unreferencing
   // if this class is unloaded.
+  // 与_array_klasses类似, 只不过_array_name指的是数组的名称
+  // 比如 _array_name = [Ljava/lang/Object
   Symbol*         _array_name;
 
   // Number of heapOopSize words used by non-static fields in this klass
   // (including inherited fields but after header_size()).
+  // 非静态字段需要占用的内存空间, 以字为单位. 在为该InstanceKlass实例表示的Java类所创建的对象(使用oop表示)分配内存的时候,
+  // 会参考此属性的值分配对象内存, 在类解析的时候会事先计算好这个值
   int             _nonstatic_field_size;
+  // 静态字段需要占用的内存空间, 以字为单位. 在为该InstanceKlass实例表示的Java类创建对应的java.lang.Class对象(使用oop表示)时,
+  // 会根据此属性的值分配对象内存, 在类解析的时候会事先计算好这个值
   int             _static_field_size;    // number words used by static fields (oop and non-oop) in this klass
   // Constant pool index to the utf8 entry of the Generic signature,
   // or 0 if none.
+  // 保存java类的签名在常量池中的索引
   u2              _generic_signature_index;
   // Constant pool index to the utf8 entry for the name of source file
   // containing this klass, 0 if not specified.
+  // 保存java类的源文件名在常量池中的索引
   u2              _source_file_name_index;
+  // Java类包含的静态引用类型字段的数量
   u2              _static_oop_field_count;// number of static oop fields in this klass
+  // Java类包含的字段总数量
   u2              _java_fields_count;    // The number of declared Java fields
+  // OopMapBlock需要占用的内存空间, 以字为单位, OopMapBlock使用<偏移量,数量>描述Java类(InstanceKlass实例)中各个非静态对象(oop)类型的
+  // 变量在Java对象中的具体位置, 这样垃圾回收时就能找到Java对象中引用的其他对象
   int             _nonstatic_oop_map_size;// size in words of nonstatic oop map blocks
 
   // _is_marked_dependent can be set concurrently, thus cannot be part of the
@@ -241,10 +266,15 @@ class InstanceKlass: public Klass {
     _misc_has_been_redefined       = 1 << 7  // class has been redefined
   };
   u2              _misc_flags;
+  // 类的次版本号
   u2              _minor_version;        // minor version number of class file
+  // 类的主版本号
   u2              _major_version;        // major version number of class file
+  // 执行Java类初始化的Thread指针
   Thread*         _init_thread;          // Pointer to current thread doing initialization (to handle recursive initialization)
+  // java虚函数表(vtable)所占用的内存空间, 以字为单位
   int             _vtable_len;           // length of Java vtable (in words)
+  // java接口函数表(itable)所占用的内存空间, 以字为单位
   int             _itable_len;           // length of Java itable (in words)
   OopMapCache*    volatile _oop_map_cache;   // OopMapCache for all methods in the klass (allocated lazily)
   MemberNameTable* _member_names;        // Member names
@@ -264,7 +294,11 @@ class InstanceKlass: public Klass {
   // Class states are defined as ClassState (see above).
   // Place the _init_state here to utilize the unused 2-byte after
   // _idnum_allocated_count.
+  // 标识类的状态, 为枚举类型ClassState 定义了如下的常量
+  // allocated(已分配内存), loaded(读取class文件信息并加载到内存中), linked(已经成功连接和校验)
+  // being_initialized(正在初始化)， fully_initialized(已完成初始化), initialization_error(初始化发生错误)
   u1              _init_state;                    // state of class
+  // 引用类型, 表示当前的InstanceKlass实例的引用类型, 可能是强引用, 软引用或者弱引用等等
   u1              _reference_type;                // reference type
 
   JvmtiCachedClassFieldMap* _jvmti_cached_class_field_map;  // JVMTI: used during heap iteration
@@ -272,17 +306,22 @@ class InstanceKlass: public Klass {
   NOT_PRODUCT(int _verify_count;)  // to avoid redundant verifies
 
   // Method array.
+  // 保存方法的指针数组
   Array<Method*>* _methods;
   // Default Method Array, concrete methods inherited from interfaces
+  // 保存方法的指针数组, 是从接口继承的默认方法
   Array<Method*>* _default_methods;
-  // Interface (Klass*s) this class declares locally to implement.
+  // Interface (Klass*s) this class declares locally to implement.aa
+  // 保存接口的指针数组, 是直接实现的接口Klass
   Array<Klass*>* _local_interfaces;
+  // 保存接口的指针数组, 包含_local_interfaces和间接实现的接口
   // Interface (Klass*s) this class implements transitively.
   Array<Klass*>* _transitive_interfaces;
   // Int array containing the original order of method in the class file (for JVMTI).
   Array<int>*     _method_ordering;
   // Int array containing the vtable_indices for default_methods
   // offset matches _default_methods offset
+  // 默认方法在虚函数表中的索引
   Array<int>*     _default_vtable_indices;
 
   // Instance and static variable information, starts with 6-tuples of shorts
@@ -298,6 +337,10 @@ class InstanceKlass: public Klass {
   //     [generic signature index]
   //     [generic signature index]
   //     ...
+  // 类的字段属性, 每个字段有6个属性, 分别为access, name index, sig index, initial value index
+  // low_offset, high_offset, 他们组成一个元组, access表示访问控制属性, 根据name index可以获取属性名称
+  // 根据initial value index可以获取初始值, 根据low_offset与high_offset可以获取该属性在内存中的偏移量
+  // 保存以上所有的属性之后还可能会保存泛型前面信息
   Array<u2>*      _fields;
 
   // embedded Java vtable follows here

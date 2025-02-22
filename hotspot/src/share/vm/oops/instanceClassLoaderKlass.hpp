@@ -33,7 +33,7 @@
 // key that this class loader points to.  This is how the loader_data graph is
 // walked and dependant class loaders are kept alive.  I thought we walked
 // the list later?
-
+// InstanceClassLoaderKlass类没有添加新的字段, 但增加了新的oop遍历方法, 在垃圾回收阶段遍历类加载器加载的所有类来标记引用的所有对象
 class InstanceClassLoaderKlass: public InstanceKlass {
   friend class VMStructs;
   friend class InstanceKlass;

@@ -189,7 +189,7 @@ InstanceKlass* InstanceKlass::allocate_instance_klass(
                                               Klass* super_klass,
                                               bool is_anonymous,
                                               TRAPS) {
-
+  // 获取创建InstanceKlass实例时需要分配的内存空间
   int size = InstanceKlass::size(vtable_len, itable_len, nonstatic_oop_map_size,
                                  access_flags.is_interface(), is_anonymous);
 
@@ -197,6 +197,8 @@ InstanceKlass* InstanceKlass::allocate_instance_klass(
   InstanceKlass* ik;
   if (rt == REF_NONE) {
     if (name == vmSymbols::java_lang_Class()) {
+    // 通过InstanceMirrorKlass实例表示java.lang.Class类
+    // 通过重载new运算符开辟c++类实例的内存空间
       ik = new (loader_data, size, THREAD) InstanceMirrorKlass(
         vtable_len, itable_len, static_field_size, nonstatic_oop_map_size, rt,
         access_flags, is_anonymous);
@@ -204,17 +206,20 @@ InstanceKlass* InstanceKlass::allocate_instance_klass(
           (SystemDictionary::ClassLoader_klass_loaded() &&
           super_klass != NULL &&
           super_klass->is_subtype_of(SystemDictionary::ClassLoader_klass()))) {
+          // 通过InstanceClassLoaderKlass实例表示java.lang.ClassLoader或相关子类
       ik = new (loader_data, size, THREAD) InstanceClassLoaderKlass(
         vtable_len, itable_len, static_field_size, nonstatic_oop_map_size, rt,
         access_flags, is_anonymous);
     } else {
       // normal class
+      // 通过InstanceKlass实例表示普通类
       ik = new (loader_data, size, THREAD) InstanceKlass(
         vtable_len, itable_len, static_field_size, nonstatic_oop_map_size, rt,
         access_flags, is_anonymous);
     }
   } else {
     // reference klass
+    // 通过InstanceRefKlass实例表示引用类型
     ik = new (loader_data, size, THREAD) InstanceRefKlass(
         vtable_len, itable_len, static_field_size, nonstatic_oop_map_size, rt,
         access_flags, is_anonymous);

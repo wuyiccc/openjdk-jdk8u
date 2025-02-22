@@ -44,7 +44,8 @@
 // are linked to the static pending_list in class java/lang/ref/Reference,
 // and the pending list lock object in the same class is notified.
 
-
+// 标识Java引用类型的InstanceRefKlass
+// 与普通的java对象不同的是, java.lang.ref.Reference类并不是用InstanceKlass来表示的, 而是InstanceRefKlass
 class InstanceRefKlass: public InstanceKlass {
   friend class InstanceKlass;
 

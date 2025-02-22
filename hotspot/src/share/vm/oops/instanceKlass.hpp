@@ -970,13 +970,20 @@ class InstanceKlass: public Klass {
   static int size(int vtable_length, int itable_length,
                   int nonstatic_oop_map_size,
                   bool is_interface, bool is_anonymous) {
-    return align_object_size(header_size() +
+    return align_object_size(
+            // InstanceKlass类自己占用的内存空间
+           header_size() +
+           // vtable占用的内存空间
            align_object_offset(vtable_length) +
+           // itable占用的内存空间
            align_object_offset(itable_length) +
+           // OopMapBlock占用的内存空间
            ((is_interface || is_anonymous) ?
              align_object_offset(nonstatic_oop_map_size) :
              nonstatic_oop_map_size) +
+             // 针对接口存储的信息
            (is_interface ? (int)sizeof(Klass*)/HeapWordSize : 0) +
+           // 针对匿名类存储的信息
            (is_anonymous ? (int)sizeof(Klass*)/HeapWordSize : 0));
   }
   int size() const                    { return size(vtable_length(),

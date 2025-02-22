@@ -43,6 +43,7 @@ class InstanceMirrorKlass: public InstanceKlass {
   friend class InstanceKlass;
 
  private:
+  // 静态字段的起始偏移量
   static int _offset_of_static_fields;
 
   // Constructor
@@ -69,6 +70,7 @@ class InstanceMirrorKlass: public InstanceKlass {
     return (HeapWord*)(cast_from_oop<intptr_t>(obj) + offset_of_static_fields());
   }
 
+  //
   static void init_offset_of_static_fields() {
     // Cache the offset of the static fields in the Class instance
     assert(_offset_of_static_fields == 0, "once");

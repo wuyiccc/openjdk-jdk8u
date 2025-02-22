@@ -465,15 +465,23 @@ protected:
   // subclass check
   bool is_subclass_of(const Klass* k) const;
   // subtype check: true if is_subclass_of, or if k is interface and receiver implements it
+  // 判断当前类是否是参数k的子类
+  // k除了为类之外, 也有可能是接口, 如果当前类实现了接口k, 那么也是返回true
   bool is_subtype_of(Klass* k) const {
+    // 拿到k实例中,k的存储k父类地址信息的地址的偏移量
     juint    off = k->super_check_offset();
+    // 通过这个地址, 获取同样在当前类中这个位置上面的父类信息
     Klass* sup = *(Klass**)( (address)this + off );
     const juint secondary_offset = in_bytes(secondary_super_cache_offset());
+    // 如果k存储在当前类的_primary_supers数组中, 那么这里sup肯定等于k
     if (sup == k) {
       return true;
     } else if (off != secondary_offset) {
+      // 如果k存储在_secondary_offset中, 那么当前类也肯定存储在secondary_supers中
+      // 如果这里偏移量不相等, 那么说明有一个不是在_secondary_supers中
       return false;
     } else {
+      // 这里再从_secondary_supers中搜索这个数据
       return search_secondary_supers(k);
     }
   }

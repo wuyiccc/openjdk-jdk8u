@@ -89,10 +89,15 @@ bool Klass::search_secondary_supers(Klass* k) const {
   // This is necessary, since I am never in my own secondary_super list.
   if (this == k)
     return true;
+//    ResourceMark rm;
+//    if (strcmp(name()->as_C_string(), "Test$TestTwo") == 0) {
+//        byte i = 0;
+//    }
   // Scan the array-of-objects for a match
   int cnt = secondary_supers()->length();
   for (int i = 0; i < cnt; i++) {
     if (secondary_supers()->at(i) == k) {
+
       ((Klass*)this)->set_secondary_super_cache(k);
       return true;
     }
@@ -252,9 +257,9 @@ void Klass::initialize_supers(Klass* k, TRAPS) {
     set_super(k);
     return;
   }
-//    if (strcmp(name()->as_C_string(), "Test$TestZero") == 0) {
-//        int x = 10;
-//    }
+    if (strcmp(name()->as_C_string(), "Test$TestTwo") == 0) {
+        int x = 10;
+    }
 //    if (strcmp(name()->as_C_string(), "Test$A") == 0
 //        || strcmp(name()->as_C_string(), "Test$B") == 0
 //        || strcmp(name() -> as_C_string(), "Test$C") == 0

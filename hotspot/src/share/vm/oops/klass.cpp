@@ -426,6 +426,13 @@ void Klass::set_next_sibling(Klass* s) {
 }
 
 void Klass::append_to_sibling_list() {
+
+//  ResourceMark rm;
+//  if (strcmp(name()->as_C_string(), "Test$TestTwo") == 0
+//    || strcmp(name()->as_C_string(), "Test$TestThree") == 0
+//    || strcmp(name()->as_C_string(), "Test$TestZero") == 0) {
+//    int i = 10;
+//  }
   debug_only(verify();)
   // add ourselves to superklass' subklass list
   InstanceKlass* super = superklass();

@@ -151,7 +151,7 @@ class Klass : public Metadata {
   Symbol*     _name;
 
   // Cache of last observed secondary supertype
-  // 保存上一次查询父类的结果
+  // 保存上一次查询父类的结果, 比如之前调用is_subtype_if(k), 检查k是否是当前klass实例的父类, 如果检查是, 且查询到了_secondary_supers 这里, 那么_secondary_super_cache就是存储的k
   Klass*      _secondary_super_cache;
   // Array of all secondary supertypes
   // Klass指针数组, 一般存储java类实现的接口, 偶尔还会存储Java类及其父类, 其实真正debug的时候发现, 就算_primary_supers溢出了, _secondary_supers不会存储klass实例自己
@@ -205,7 +205,7 @@ private:
   // This is an index into FileMapHeader::_classpath_entry_table[], to
   // associate this class with the JAR file where it's loaded from during
   // dump time. If a class is not loaded from the shared archive, this field is
-  // -1.
+  // -1.z
   jshort _shared_class_path_index;
 
   friend class SharedClassUtil;

@@ -154,7 +154,7 @@ class Klass : public Metadata {
   // 保存上一次查询父类的结果
   Klass*      _secondary_super_cache;
   // Array of all secondary supertypes
-  // Klass指针数组, 一般存储java类实现的接口, 偶尔还会存储Java类及其父类
+  // Klass指针数组, 一般存储java类实现的接口, 偶尔还会存储Java类及其父类, 其实真正debug的时候发现, 就算_primary_supers溢出了, _secondary_supers不会存储klass实例自己
   Array<Klass*>* _secondary_supers;
   // Ordered list of all primary supertypes
   // 当前klass的父类, 这是一个Klass数组, 存储的是父类的层级

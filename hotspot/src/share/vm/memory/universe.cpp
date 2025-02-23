@@ -341,6 +341,7 @@ void Universe::genesis(TRAPS) {
   // ordinary object arrays, _objectArrayKlass will be loaded when
   // SystemDictionary::initialize(CHECK); is run. See the extra check
   // for Object_klass_loaded in objArrayKlassKlass::allocate_objArray_klass_impl.
+  // 调用表示Object类的InstanceKlass类的array_klass函数
   _objectArrayKlassObj = InstanceKlass::
     cast(SystemDictionary::Object_klass())->array_klass(1, CHECK);
   // OLD

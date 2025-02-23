@@ -1192,17 +1192,20 @@ Klass* InstanceKlass::array_klass_impl(instanceKlassHandle this_oop, bool or_nul
     JavaThread *jt = (JavaThread *)THREAD;
     {
       // Atomic creation of array_klasses
+      // 通过double check + 锁机制保证了创建一维数组类型的原子性
       MutexLocker mc(Compile_lock, THREAD);   // for vtables
       MutexLocker ma(MultiArray_lock, THREAD);
 
       // Check if update has already taken place
       if (this_oop->array_klasses() == NULL) {
+        // 创建以当前InstanceKlass实例为基本类型的一维类型数组, 创建成功后保存到_array_klasses属性中, 避免下次再重新创建
         Klass*    k = ObjArrayKlass::allocate_objArray_klass(this_oop->class_loader_data(), 1, this_oop, CHECK_NULL);
         this_oop->set_array_klasses(k);
       }
     }
   }
   // _this will always be set at this point
+  // 拿出创建好的一维数组
   ObjArrayKlass* oak = (ObjArrayKlass*)this_oop->array_klasses();
   if (or_null) {
     return oak->array_klass_or_null(n);

@@ -116,6 +116,7 @@ Klass* ObjArrayKlass::allocate_objArray_klass(ClassLoaderData* loader_data,
   }
 
   // Create type name for klass.
+  // 为n维数组的ObjArrayKlass创建名称
   Symbol* name = NULL;
   if (!element_klass->oop_is_instance() ||
       (name = InstanceKlass::cast(element_klass())->array_name()) == NULL) {
@@ -143,11 +144,13 @@ Klass* ObjArrayKlass::allocate_objArray_klass(ClassLoaderData* loader_data,
   }
 
   // Initialize instance variables
+  // 创建组件类型为element_klass, 维度为n, 名称为name的数组
   ObjArrayKlass* oak = ObjArrayKlass::allocate(loader_data, n, element_klass, name, CHECK_0);
 
   // Add all classes to our internal class loader list here,
   // including classes in the bootstrap (NULL) class loader.
   // GC walks these as strong roots.
+  // 将创建的类型加到类加载器列表中, 在垃圾回收的时候会当做强根处理
   loader_data->add_class(oak);
 
   // Call complete_create_array_klass after all instance variables has been initialized.
@@ -329,6 +332,7 @@ Klass* ObjArrayKlass::array_klass_impl(bool or_null, int n, TRAPS) {
 
   assert(dimension() <= n, "check order of chain");
   int dim = dimension();
+  // 如果当前数组的维度已经满足要求了, 直接返回当前this即可
   if (dim == n) return this;
 
   if (higher_dimension() == NULL) {
@@ -348,8 +352,10 @@ Klass* ObjArrayKlass::array_klass_impl(bool or_null, int n, TRAPS) {
         Klass* k =
           ObjArrayKlass::allocate_objArray_klass(class_loader_data(), dim + 1, this, CHECK_NULL);
         ObjArrayKlass* ak = ObjArrayKlass::cast(k);
+        // 创建新的高维数组之后, 将当前低一维的this指定为ak的低一维数组
         ak->set_lower_dimension(this);
         OrderAccess::storestore();
+        // 将新创建的高维数组指定为当前this对象的高维数组, 这样就形成了一个链表结构
         set_higher_dimension(ak);
         assert(ak->oop_is_objArray(), "incorrect initialization of ObjArrayKlass");
       }

@@ -84,15 +84,15 @@
 //    to make room for the age bits & the epoch bits (used in support of
 //    biased locking), and for the CMS "freeness" bit in the 64bVM (+COOPs).
 //
-//    [JavaThread* | epoch | age | 1 | 01]       lock is biased toward given thread
+//    [JavaThread* | epoch | age | 1 | 01]       lock is biased toward given thread  偏向锁 存储 javaThread*(54bit) + epoch(偏向锁的时间戳2bit? 准确的来说应该是锁版本号) + unused(1bit) + age(4bit) + 101
 //    [0           | epoch | age | 1 | 01]       lock is anonymously biased
 //
 //  - the two lock bits are used to describe three states: locked/unlocked and monitor.
 //
-//    [ptr             | 00]  locked             ptr points to real header on stack
-//    [header      | 0 | 01]  unlocked           regular object header
-//    [ptr             | 10]  monitor            inflated lock (header is wapped out)
-//    [ptr             | 11]  marked             used by markSweep to mark an object
+//    [ptr             | 00]  locked             ptr points to real header on stack 轻量级锁 ptr_to_lock_record(62bit)轻量级锁状态下指向栈中锁记录的指针 + 00
+//    [header      | 0 | 01]  unlocked           regular object header  无偏向锁==无锁状态 存储 unsed(25bit) + hashcode(31bit) + unused(1bit) + age(4bit) + 001
+//    [ptr             | 10]  monitor            inflated lock (header is wapped out) 重量级锁 ptr_to_heavyweight_monitor(62bit)重量级锁状态下, 指向对象监视器monitor的指针 + 10
+//    [ptr             | 11]  marked             used by markSweep to mark an object GC标记 forwarding ptr(CMS过程总用到的标记信息 可选) 11
 //                                               not valid at any other time
 //
 //    We assume that stack/thread pointers have the lowest two bits cleared.

@@ -41,6 +41,7 @@ class vframeArray;
 class oopFactory: AllStatic {
  public:
   // Basic type leaf array allocation
+  // 创建一个boolean基础数据类型的数组oop对象
   static typeArrayOop    new_boolArray  (int length, TRAPS) { return TypeArrayKlass::cast(Universe::boolArrayKlassObj  ())->allocate(length, THREAD); }
   static typeArrayOop    new_charArray  (int length, TRAPS) { return TypeArrayKlass::cast(Universe::charArrayKlassObj  ())->allocate(length, THREAD); }
   static typeArrayOop    new_singleArray(int length, TRAPS) { return TypeArrayKlass::cast(Universe::singleArrayKlassObj())->allocate(length, THREAD); }

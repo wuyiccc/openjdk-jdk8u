@@ -97,15 +97,18 @@ TypeArrayKlass::TypeArrayKlass(BasicType type, Symbol* name) : ArrayKlass(name) 
 
   set_class_loader_data(ClassLoaderData::the_null_class_loader_data());
 }
-
+// length表示创建数组的大小, do_zero表示是否需要在分配数组内存的时候将内存初始化为零值
 typeArrayOop TypeArrayKlass::allocate_common(int length, bool do_zero, TRAPS) {
   assert(log2_element_size() >= 0, "bad scale");
   if (length >= 0) {
     if (length <= max_length()) {
+      // 从layout_helper中获取数组的大小
       size_t size = typeArrayOopDesc::object_size(layout_helper(), length);
       KlassHandle h_k(THREAD, this);
       typeArrayOop t;
       CollectedHeap* ch = Universe::heap();
+      // 分配内存并初始化对象头, 即为_mark, _metadata, length属性赋值
+      // 在堆上分配内存空间
       if (do_zero) {
         t = (typeArrayOop)CollectedHeap::array_allocate(h_k, (int)size, length, CHECK_NULL);
       } else {

@@ -63,6 +63,7 @@
 
 class Handle VALUE_OBJ_CLASS_SPEC {
  private:
+  // 持有了oopDesc对象
   oop* _handle;
 
  protected:
@@ -224,6 +225,7 @@ class HandleArea: public Arena {
   int _handle_mark_nesting;
   int _no_handle_mark_nesting;
 #endif
+  // HandleArea通过_prev链接成单链表
   HandleArea* _prev;          // link to outer (older) area
  public:
   // Constructor
@@ -235,6 +237,7 @@ class HandleArea: public Arena {
 
   // Handle allocation
  private:
+  // 分配内存并存储obj对象
   oop* real_allocate_handle(oop obj) {
 #ifdef ASSERT
     oop* handle = (oop*) (UseMallocOnly ? internal_malloc_4(oopSize) : Amalloc_4(oopSize));
@@ -285,12 +288,15 @@ class HandleArea: public Arena {
 
 class HandleMark {
  private:
+  // 拥有当前HandleMark实例的线程
   Thread *_thread;              // thread that owns this mark
+  // 快照存储chunk和area, 获得准确的地址
   HandleArea *_area;            // saved handle area
   Chunk *_chunk;                // saved arena chunk
   char *_hwm, *_max;            // saved arena info
   size_t _size_in_bytes;        // size of handle area
   // Link to previous active HandleMark in thread
+  // 通过pre属性形成HandleMark单链表, 方便回滚
   HandleMark* _previous_handle_mark;
 
   void initialize(Thread* thread);                // common code for constructors

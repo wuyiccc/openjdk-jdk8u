@@ -120,7 +120,9 @@ void HandleMark::initialize(Thread* thread) {
   debug_only(Atomic::inc(&_nof_handlemarks);)
 
   // Link this in the thread
+  // 将当前线程持有的HandleMark作为最新创建的HandleMark的上一个HandleMark
   set_previous_handle_mark(thread->last_handle_mark());
+  // 将当前线程的最新的HandleMark设置为这个最新创建的HandleMark
   thread->set_last_handle_mark(this);
 }
 
@@ -162,11 +164,14 @@ HandleMark::~HandleMark() {
     // arena size could exceed total chunk size
     assert(area->size_in_bytes() > size_in_bytes(), "Sanity check");
     area->set_size_in_bytes(size_in_bytes());
+    // 删除当前chunk以后的所有的chunk, 即在方法调用期间新创建的Chunk
     _chunk->next_chop();
   } else {
+    // 如果没有下一个chunk, 说明未分配新的chunk, 则area的大小应该保持不变
     assert(area->size_in_bytes() == size_in_bytes(), "Sanity check");
   }
   // Roll back arena to saved top markers
+  // 回复area的属性至HandleMark构造时的状态, 可以理解为方法调用之前的状态
   area->_chunk = _chunk;
   area->_hwm = _hwm;
   area->_max = _max;
@@ -179,6 +184,7 @@ HandleMark::~HandleMark() {
 #endif
 
   // Unlink this from the thread
+  // 解除当前HandleMark与线程的关联, 即将这个HandleMark之前的HandleMark重新设置给当前线程
   _thread->set_last_handle_mark(previous_handle_mark());
 }
 

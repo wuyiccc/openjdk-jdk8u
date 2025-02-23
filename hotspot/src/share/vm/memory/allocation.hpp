@@ -439,6 +439,7 @@ protected:
       return NULL;
     NOT_PRODUCT(inc_bytes_allocated(x);)
     if (_hwm + x > _max) {
+      // 分配新的chunk块, 在新的chunk块中分配内存
       return grow(x, alloc_failmode);
     } else {
       char *old = _hwm;

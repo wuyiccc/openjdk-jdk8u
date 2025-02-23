@@ -269,6 +269,7 @@ void Universe::genesis(TRAPS) {
       compute_base_vtable_size();
 
       if (!UseSharedSpaces) {
+        // 在这里创建基本数据类型数组的TypeArrayKlass实例
         _boolArrayKlassObj      = TypeArrayKlass::create_klass(T_BOOLEAN, sizeof(jboolean), CHECK);
         _charArrayKlassObj      = TypeArrayKlass::create_klass(T_CHAR,    sizeof(jchar),    CHECK);
         _singleArrayKlassObj    = TypeArrayKlass::create_klass(T_FLOAT,   sizeof(jfloat),   CHECK);
@@ -449,7 +450,7 @@ void Universe::init_self_patching_vtbl_list(void** list, int count) {
   { Method o;                 add_vtable(list, &n, &o, count); }
   { ConstantPool o;           add_vtable(list, &n, &o, count); }
 }
-
+// 创建基本数据类型对应的mirror
 void Universe::initialize_basic_type_mirrors(TRAPS) {
     assert(_int_mirror==NULL, "basic type mirrors already initialized");
     _int_mirror     =

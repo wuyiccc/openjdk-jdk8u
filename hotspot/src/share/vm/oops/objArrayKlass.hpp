@@ -31,7 +31,7 @@
 #include "utilities/macros.hpp"
 
 // ObjArrayKlass is the klass for objArrays
-
+// 数组的组件类型是对象类型
 class ObjArrayKlass : public ArrayKlass {
   friend class VMStructs;
  private:

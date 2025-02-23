@@ -30,10 +30,14 @@
 
 // A TypeArrayKlass is the klass of a typeArray
 // It contains the type and size of the elements
-
+// 表示数组组件类型是Java基本类型
+// 数组类没有对应的Class文件, 因此数组类是虚拟机直接创建的
+// hotspot虚拟机在初始化的时候, 就会创建Java中8个基本类型的一维数组实例TypeArrayKlass
+// 在initializeJVM函数中 Universe::genesis()进行初始化
 class TypeArrayKlass : public ArrayKlass {
   friend class VMStructs;
  private:
+  // 保存数组允许的最大长度
   jint _max_length;            // maximum number of elements allowed in an array
 
   // Constructor

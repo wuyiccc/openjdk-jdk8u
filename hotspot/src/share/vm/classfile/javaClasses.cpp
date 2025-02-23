@@ -596,11 +596,14 @@ void java_lang_Class::create_mirror(KlassHandle k, Handle class_loader,
 
     // It might also have a component mirror.  This mirror must already exist.
     if (k->oop_is_array()) {
+      // k是ArrayKlass实例
       Handle comp_mirror;
       if (k->oop_is_typeArray()) {
+      // k是TypeArrayKlass实例, 这里获取的是对应组件类型type的mirror的值
         BasicType type = TypeArrayKlass::cast(k())->element_type();
         comp_mirror = Universe::java_mirror(type);
       } else {
+      // k是ObjectArrayKlass实例
         assert(k->oop_is_objArray(), "Must be");
         Klass* element_klass = ObjArrayKlass::cast(k())->element_klass();
         assert(element_klass != NULL, "Must have an element klass");
@@ -613,7 +616,7 @@ void java_lang_Class::create_mirror(KlassHandle k, Handle class_loader,
       set_array_klass(comp_mirror(), k());
     } else {
       assert(k->oop_is_instance(), "Must be");
-
+      // 初始化了java.lang.Class对象中静态字段的值, 这样静态字段就可以正常使用了
       initialize_mirror_fields(k, mirror, protection_domain, THREAD);
       if (HAS_PENDING_EXCEPTION) {
         // If any of the fields throws an exception like OOM remove the klass field
@@ -705,6 +708,8 @@ oop java_lang_Class::class_loader(oop java_class) {
 oop java_lang_Class::create_basic_type_mirror(const char* basic_type_name, BasicType type, TRAPS) {
   // This should be improved by adding a field at the Java level or by
   // introducing a new VM klass (see comment in ClassFileParser)
+  // 调用InstanceMirrorKlass示例的allocate_instance()函数创建oop(表示java.lang.Class对象)
+  // 数组中_component_mirror最终设置的就是这个oop
   oop java_class = InstanceMirrorKlass::cast(SystemDictionary::Class_klass())->allocate_instance(NULL, CHECK_0);
   if (type != T_VOID) {
     Klass* aklass = Universe::typeArrayKlassObj(type);

@@ -40,6 +40,10 @@ int ArrayKlass::static_size(int header_size) {
   // size of an array klass object
   assert(header_size <= InstanceKlass::header_size(), "bad header size");
   // If this assert fails, see comments in base_create_array_klass.
+  // 这里用InstanceKlass类自身占用的空间代替了TypeArrayKlass的空间
+  // 主要是InstanceKlass类自身占用的内存空间要比TypeArrayKlass大, 空间足够
+  // 更重要的是为了统一从固定的偏移位置获取vtable等信息, 在实际操作Klass实例的过程
+  // 无须关系是数组还是类, 直接偏移固定位置后就可获取
   header_size = InstanceKlass::header_size();
   int vtable_len = Universe::base_vtable_size();
 #ifdef _LP64
@@ -102,8 +106,11 @@ ArrayKlass::ArrayKlass(Symbol* name) {
 // since a GC can happen. At this point all instance variables of the ArrayKlass must be setup.
 void ArrayKlass::complete_create_array_klass(ArrayKlass* k, KlassHandle super_klass, TRAPS) {
   ResourceMark rm(THREAD);
+  // 在这里初始化supers数据
   k->initialize_supers(super_klass(), CHECK);
+  // 初始化vtable
   k->vtable()->initialize_vtable(false, CHECK);
+  // 设置_component_mirror属性
   java_lang_Class::create_mirror(k, Handle(THREAD, k->class_loader()), Handle(NULL), CHECK);
 }
 

@@ -385,6 +385,7 @@ DictionaryEntry* Dictionary::get_entry(int index, unsigned int hash,
 
 Klass* Dictionary::find(int index, unsigned int hash, Symbol* name,
                           ClassLoaderData* loader_data, Handle protection_domain, TRAPS) {
+  // 根据类名和类加载器计算对应的klass实例在字典里存储的key
   DictionaryEntry* entry = get_entry(index, hash, name, loader_data);
   if (entry != NULL && entry->is_valid_protection_domain(protection_domain)) {
     return entry->klass();

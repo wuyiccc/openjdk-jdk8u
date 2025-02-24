@@ -951,7 +951,7 @@ Klass* SystemDictionary::find(Symbol* class_name,
     // then the class loader has no entries in the dictionary.
     return NULL;
   }
-
+  // 只有通过类的加载器和类名称才能唯一确定一个klass实例
   unsigned int d_hash = dictionary()->compute_hash(class_name, loader_data);
   int d_index = dictionary()->hash_to_index(d_hash);
 
@@ -983,16 +983,21 @@ Klass* SystemDictionary::find_instance_or_array_klass(Symbol* class_name,
     // dimension and object_key in FieldArrayInfo are assigned as a
     // side-effect of this call
     FieldArrayInfo fd;
+    // 获取元素的基本数据类型
     BasicType t = FieldType::get_array_info(class_name, fd, CHECK_(NULL));
     if (t != T_OBJECT) {
+      // 元素为java基本数据类型
       k = Universe::typeArrayKlassObj(t);
     } else {
+      // 元素类型为java对象
       k = SystemDictionary::find(fd.object_key(), class_loader, protection_domain, THREAD);
     }
     if (k != NULL) {
+      // class_name 表示的可能是多维数组, 因此需要根据维度创建ObjArrayKlass实例
       k = k->array_klass_or_null(fd.dimension());
     }
   } else {
+    // 类的查找逻辑
     k = find(class_name, class_loader, protection_domain, THREAD);
   }
   return k;

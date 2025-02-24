@@ -1142,12 +1142,9 @@ objArrayOop ClassLoader::get_system_packages(TRAPS) {
 instanceKlassHandle ClassLoader::load_classfile(Symbol* h_name, TRAPS) {
   ResourceMark rm(THREAD);
   const char* class_name = h_name->as_C_string();
-  if (strcmp(class_name, "Test$TestZero") == 0) {
-    int x = 10;
-  }
   EventMark m("loading class %s", class_name);
   ThreadProfilerMark tpm(ThreadProfilerMark::classLoaderRegion);
-
+  // 获取文件名称
   stringStream st;
   // st.print() uses too much stack space while handling a StackOverflowError
   // st.print("%s.class", h_name->as_utf8());
@@ -1157,6 +1154,7 @@ instanceKlassHandle ClassLoader::load_classfile(Symbol* h_name, TRAPS) {
   ClassLoaderExt::Context context(class_name, file_name, THREAD);
 
   // Lookup stream for parsing .class file
+  // 根据文件名称查找class文件
   ClassFileStream* stream = NULL;
   int classpath_index = 0;
   ClassPathEntry* e = NULL;
@@ -1166,22 +1164,29 @@ instanceKlassHandle ClassLoader::load_classfile(Symbol* h_name, TRAPS) {
                                ((JavaThread*) THREAD)->get_thread_stat()->perf_timers_addr(),
                                PerfClassTraceTime::CLASS_LOAD);
     e = _first_entry;
+
+    // 从第一个ClassPathEntry开始遍历所有的ClassPathEntry
     while (e != NULL) {
+      // 因为classpath有多个, 所以通过单链表结构将ClassPathEntry连接起来
+      // 通过open_stream虚函数, 循环遍历链表上的结构, 直到查找到某个类路径下名为name的Class文件为止, 这时open_stream函数
+      // 会返回定义此类的Class文件的ClassFileStream实例
       stream = e->open_stream(file_name, CHECK_NULL);
       if (!context.check(stream, classpath_index)) {
         return h; // NULL
       }
       if (stream != NULL) {
+      // 如果找到目标文件, 则跳出循环
         break;
       }
       e = e->next();
       ++classpath_index;
     }
   }
-
+  // 如果找到了模板class文件, 则加载并解析
   if (stream != NULL) {
     // class file found, parse it
     ClassFileParser parser(stream);
+    // 获取引导类加载器
     ClassLoaderData* loader_data = ClassLoaderData::the_null_class_loader_data();
     Handle protection_domain;
     TempNewSymbol parsed_name = NULL;
@@ -1190,6 +1195,7 @@ instanceKlassHandle ClassLoader::load_classfile(Symbol* h_name, TRAPS) {
     // this call to parseClassFile
     // We do not declare another ResourceMark here, reusing the one declared
     // at the start of the method
+    // 加载并解析class文件, 注意此时并未开始连接
     instanceKlassHandle result = parser.parseClassFile(h_name,
                                                        loader_data,
                                                        protection_domain,
@@ -1211,7 +1217,7 @@ instanceKlassHandle ClassLoader::load_classfile(Symbol* h_name, TRAPS) {
     result = instanceKlassHandle(ik);
   }
 #endif
-
+    // 这里面record_result 会调用add_package()函数, 把当前类的包名加入_package_hash_table中
     h = context.record_result(classpath_index, e, result, THREAD);
   } else {
     if (DumpSharedSpaces) {

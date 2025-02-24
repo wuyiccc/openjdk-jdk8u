@@ -86,7 +86,7 @@ Klass*      SystemDictionary::_well_known_klasses[SystemDictionary::WKID_LIMIT]
                                                           =  { NULL /*, NULL...*/ };
 
 Klass*      SystemDictionary::_box_klasses[T_VOID+1]      =  { NULL /*, NULL...*/ };
-
+// 保存应用类加载器实例
 oop         SystemDictionary::_java_system_loader         =  NULL;
 
 bool        SystemDictionary::_has_loadClassInternal      =  false;
@@ -109,12 +109,17 @@ oop SystemDictionary::java_system_loader() {
 void SystemDictionary::compute_java_system_loader(TRAPS) {
   KlassHandle system_klass(THREAD, WK_KLASS(ClassLoader_klass));
   JavaValue result(T_OBJECT);
-  JavaCalls::call_static(&result,
+  // 调用java.lang.ClassLoader类的getSystemClassLoader()方法
+  JavaCalls::call_static(&result, // 调用java类的静态方法, 将其返回值存储在result中
+                         // 调用目标类为java.lang.ClassLoader
                          KlassHandle(THREAD, WK_KLASS(ClassLoader_klass)),
+                         // 调用目标类中的目标方法为getSystemClassLoader()
                          vmSymbols::getSystemClassLoader_name(),
                          vmSymbols::void_classloader_signature(),
+                         // 调用模板方法的方法签名
                          CHECK);
-
+  // 获取调用getSystemClassLoader()方法的返回值, 并将其保存到_java_system_loader中
+  // 初始化值属性为应用类加载器
   _java_system_loader = (oop)result.get_jobject();
 
   CDS_ONLY(SystemDictionaryShared::initialize(CHECK);)

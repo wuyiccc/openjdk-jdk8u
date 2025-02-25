@@ -980,6 +980,7 @@ JVM_ENTRY(jclass, JVM_FindClassFromBootLoader(JNIEnv* env,
   JVMWrapper2("JVM_FindClassFromBootLoader %s", name);
 
   // Java libraries should ensure that name is never null...
+  // 检查类名是否合法
   if (name == NULL || (int)strlen(name) > Symbol::max_length()) {
     // It's impossible to create this class;  the name cannot fit
     // into the constant pool.
@@ -987,6 +988,7 @@ JVM_ENTRY(jclass, JVM_FindClassFromBootLoader(JNIEnv* env,
   }
 
   TempNewSymbol h_name = SymbolTable::new_symbol(name, CHECK_NULL);
+  // 调用SystemDictionary.resolve_or_null()函数解析目标类, 如果未找到, 返回null
   Klass* k = SystemDictionary::resolve_or_null(h_name, CHECK_NULL);
   if (k == NULL) {
     return NULL;

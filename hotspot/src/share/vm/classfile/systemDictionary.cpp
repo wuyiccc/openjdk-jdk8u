@@ -240,15 +240,18 @@ Klass* SystemDictionary::resolve_or_null(Symbol* class_name, Handle class_loader
          err_msg("can not load classes with compiler thread: class=%s, classloader=%s",
                  class_name->as_C_string(),
                  class_loader.is_null() ? "null" : class_loader->klass()->name()->as_C_string()));
+  // 兼容字段描述符的判断方式 通过class_name的签名格式来判断是否是数组, 比如 [Ljava.lang.Object; 对象数组开头是[L
   if (FieldType::is_array(class_name)) {
     return resolve_array_class_or_null(class_name, class_loader, protection_domain, THREAD);
   } else if (FieldType::is_obj(class_name)) {
+    // 普通类, 通过签名的格式来判断
     ResourceMark rm(THREAD);
     // Ignore wrapping L and ;.
     TempNewSymbol name = SymbolTable::new_symbol(class_name->as_C_string() + 1,
                                    class_name->utf8_length() - 2, CHECK_NULL);
     return resolve_instance_class_or_null(name, class_loader, protection_domain, THREAD);
   } else {
+    // 普通类
     return resolve_instance_class_or_null(class_name, class_loader, protection_domain, THREAD);
   }
 }
@@ -268,6 +271,7 @@ Klass* SystemDictionary::resolve_array_class_or_null(Symbol* class_name,
   FieldArrayInfo fd;
   // dimension and object_key in FieldArrayInfo are assigned as a side-effect
   // of this call
+  // 获取数组元素类型
   BasicType t = FieldType::get_array_info(class_name, fd, CHECK_NULL);
   if (t == T_OBJECT) {
     // naked oop "k" is OK here -- we assign back into it
@@ -279,6 +283,7 @@ Klass* SystemDictionary::resolve_array_class_or_null(Symbol* class_name,
       k = k->array_klass(fd.dimension(), CHECK_NULL);
     }
   } else {
+    // 基本数据类型
     k = Universe::typeArrayKlassObj(t);
     k = TypeArrayKlass::cast(k)->array_klass(fd.dimension(), CHECK_NULL);
   }
@@ -651,6 +656,7 @@ Klass* SystemDictionary::resolve_instance_class_or_null(Symbol* name,
   int d_index = dictionary()->hash_to_index(d_hash);
   Klass* probe = dictionary()->find(d_index, d_hash, name, loader_data,
                                       protection_domain, THREAD);
+  // 如果在字典中找到了klass, 则直接返回
   if (probe != NULL) return probe;
 
 
@@ -808,10 +814,11 @@ Klass* SystemDictionary::resolve_instance_class_or_null(Symbol* name,
       ResourceMark rm(THREAD);
       THROW_MSG_NULL(vmSymbols::java_lang_ClassCircularityError(), name->as_C_string());
     }
-
+    // 如果类还没有找到, 则进行加载
     if (!class_has_been_loaded) {
 
       // Do actual loading
+      // 加载klass
       k = load_instance_class(name, class_loader, THREAD);
 
       // For UnsyncloadClass only
@@ -1360,9 +1367,11 @@ instanceKlassHandle SystemDictionary::load_shared_class(instanceKlassHandle ik,
 instanceKlassHandle SystemDictionary::load_instance_class(Symbol* class_name, Handle class_loader, TRAPS) {
   instanceKlassHandle nh = instanceKlassHandle(); // null Handle
   if (class_loader.is_null()) {
+    // 使用引导类加载器加载类
 
     // Search the shared system dictionary for classes preloaded into the
     // shared spaces.
+    // 在共享系统字典中搜索预加载到共享空间中的类, 默认不使用共享空间, 因此查找的结果为null
     instanceKlassHandle k;
     {
 #if INCLUDE_CDS
@@ -1374,11 +1383,14 @@ instanceKlassHandle SystemDictionary::load_instance_class(Symbol* class_name, Ha
     if (k.is_null()) {
       // Use VM class loader
       PerfTraceTime vmtimer(ClassLoader::perf_sys_classload_time());
+      // 使用引导类加载器进行加载
       k = ClassLoader::load_classfile(class_name, CHECK_(nh));
     }
 
     // find_or_define_instance_class may return a different InstanceKlass
+
     if (!k.is_null()) {
+      // 支持并行加载, 也就是允许同一个类加载器同时加载多个类
       k = find_or_define_instance_class(class_name, class_loader, k, CHECK_(nh));
     }
 
@@ -1402,6 +1414,7 @@ instanceKlassHandle SystemDictionary::load_instance_class(Symbol* class_name, Ha
     return k;
   } else {
     // Use user specified class loader to load class. Call loadClass operation on class_loader.
+    // 使用指定的类加载器加载, 最终会调用到java.lang.ClassLoader类中的loadClass()
     ResourceMark rm(THREAD);
 
     assert(THREAD->is_Java_thread(), "must be a JavaThread");
@@ -1440,6 +1453,7 @@ instanceKlassHandle SystemDictionary::load_instance_class(Symbol* class_name, Ha
     // Added MustCallLoadClassInternal in case we discover in the field
     // a customer that counts on this call
     if (MustCallLoadClassInternal && has_loadClassInternal()) {
+      // 调用java.lang.ClassLoader对象中的loadClass()方法进行加载
       JavaCalls::call_special(&result,
                               class_loader,
                               spec_klass,
@@ -1544,6 +1558,7 @@ void SystemDictionary::define_instance_class(instanceKlassHandle k, TRAPS) {
 
     // Add to systemDictionary - so other classes can see it.
     // Grabs and releases SystemDictionary_lock
+    // 更新字典
     update_dictionary(d_index, d_hash, p_index, p_hash,
                       k, class_loader_h, THREAD);
   }

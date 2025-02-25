@@ -1210,8 +1210,10 @@ Klass* SystemDictionary::resolve_from_stream(Symbol* class_name,
     // If a class loader supports parallel classloading handle parallel define requests
     // find_or_define_instance_class may return a different InstanceKlass
     if (is_parallelCapable(class_loader)) {
+      // 支持并行加载
       k = find_or_define_instance_class(class_name, class_loader, k, THREAD);
     } else {
+      // 如果禁止并行加载, 那么直接利用SystemDictionary 将 InstanceKlass实例注册到SystemDictionary中
       define_instance_class(k, THREAD);
     }
   }

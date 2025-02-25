@@ -1153,6 +1153,7 @@ static jclass jvm_define_class_common(JNIEnv *env, const char *name,
   }
 
   ResourceMark rm(THREAD);
+  // 将要加载的Class文件转为文件流
   ClassFileStream st((u1*) buf, len, (char *)source);
   Handle class_loader (THREAD, JNIHandles::resolve(loader));
   if (UsePerfData) {
@@ -1161,6 +1162,7 @@ static jclass jvm_define_class_common(JNIEnv *env, const char *name,
                            THREAD);
   }
   Handle protection_domain (THREAD, JNIHandles::resolve(pd));
+  // 生成Klass实例
   Klass* k = SystemDictionary::resolve_from_stream(class_name, class_loader,
                                                      protection_domain, &st,
                                                      verify != 0,

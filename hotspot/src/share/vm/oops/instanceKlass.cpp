@@ -1556,6 +1556,7 @@ Method* InstanceKlass::find_method_impl(
     Array<Method*>* methods, Symbol* name, Symbol* signature,
     OverpassLookupMode overpass_mode, StaticLookupMode static_mode,
     PrivateLookupMode private_mode) {
+  // 二分查找算法
   int hit = find_method_index(methods, name, signature, overpass_mode, static_mode, private_mode);
   return hit >= 0 ? methods->at(hit): NULL;
 }
@@ -1641,10 +1642,12 @@ Method* InstanceKlass::uncached_lookup_method(Symbol* name, Symbol* signature, O
   OverpassLookupMode overpass_local_mode = overpass_mode;
   Klass* klass = const_cast<InstanceKlass*>(this);
   while (klass != NULL) {
+    // 从当前的InstanceKlass的_methods数组中查找
     Method* method = InstanceKlass::cast(klass)->find_method_impl(name, signature, overpass_local_mode, find_static, find_private);
     if (method != NULL) {
       return method;
     }
+    // 拿到父类, 继续向上查找
     klass = InstanceKlass::cast(klass)->super();
     overpass_local_mode = skip_overpass;   // Always ignore overpass methods in superclasses
   }

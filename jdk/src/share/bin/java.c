@@ -1328,11 +1328,13 @@ LoadMainClass(JNIEnv *env, int mode, char *name)
     jstring str;
     jobject result;
     jlong start = 0, end = 0;
+    // 加载sun.launcher.LauncherHelper类
     jclass cls = GetLauncherHelperClass(env);
     NULL_CHECK0(cls);
     if (JLI_IsTraceLauncher()) {
         start = CounterGet();
     }
+    // 获取sun.launcher.LauncherHelper类中定义的checkAndLoadMain()方法的指针
     NULL_CHECK0(mid = (*env)->GetStaticMethodID(env, cls,
                 "checkAndLoadMain",
                 "(ZILjava/lang/String;)Ljava/lang/Class;"));

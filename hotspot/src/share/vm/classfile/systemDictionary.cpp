@@ -1455,7 +1455,6 @@ instanceKlassHandle SystemDictionary::load_instance_class(Symbol* class_name, Ha
     // Added MustCallLoadClassInternal in case we discover in the field
     // a customer that counts on this call
     if (MustCallLoadClassInternal && has_loadClassInternal()) {
-      // 调用java.lang.ClassLoader对象中的loadClass()方法进行加载
       JavaCalls::call_special(&result,
                               class_loader,
                               spec_klass,
@@ -1464,6 +1463,7 @@ instanceKlassHandle SystemDictionary::load_instance_class(Symbol* class_name, Ha
                               string,
                               CHECK_(nh));
     } else {
+      // 调用java.lang.ClassLoader对象中的loadClass()方法进行加载, 双亲委派机制的一种体现
       JavaCalls::call_virtual(&result,
                               class_loader,
                               spec_klass,
@@ -1984,7 +1984,7 @@ static const short wk_init_info[] = {
   #undef WK_KLASS_INIT_INFO
   0
 };
-
+// 预加载核心类
 bool SystemDictionary::initialize_wk_klass(WKID id, int init_opt, TRAPS) {
   assert(id >= (int)FIRST_WKID && id < (int)WKID_LIMIT, "oob");
   int  info = wk_init_info[id - FIRST_WKID];

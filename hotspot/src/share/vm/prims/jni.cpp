@@ -1317,6 +1317,7 @@ static void jni_invoke_static(JNIEnv *env, JavaValue* result, jobject receiver, 
   // the jni parser
   ResourceMark rm(THREAD);
   int number_of_parameters = method->size_of_parameters();
+  // 将要传给java的参数转换为avaCallArguments实例传下去
   JavaCallArguments java_args(number_of_parameters);
   args->set_java_argument_object(&java_args);
 
@@ -1332,6 +1333,7 @@ static void jni_invoke_static(JNIEnv *env, JavaValue* result, jobject receiver, 
   JavaCalls::call(result, method, &java_args, CHECK);
 
   // Convert result
+  // 转换结果类型
   if (result->get_type() == T_OBJECT || result->get_type() == T_ARRAY) {
     result->set_jobject(JNIHandles::make_local(env, (oop) result->get_jobject()));
   }
@@ -1590,7 +1592,7 @@ static jmethodID get_method_id(JNIEnv *env, jclass clazz, const char *name_str,
   if (java_lang_Class::is_primitive(JNIHandles::resolve_non_null(clazz))) {
     THROW_MSG_0(vmSymbols::java_lang_NoSuchMethodError(), name_str);
   }
-
+  // 确保类已经初始化完毕
   KlassHandle klass(THREAD,
                java_lang_Class::as_Klass(JNIHandles::resolve_non_null(clazz)));
 
@@ -1599,6 +1601,8 @@ static jmethodID get_method_id(JNIEnv *env, jclass clazz, const char *name_str,
   klass()->initialize(CHECK_NULL);
 
   Method* m;
+  // 查找构造方法, 不会查找超类
+  // name为 <init> 或者 <cinit>
   if (name == vmSymbols::object_initializer_name() ||
       name == vmSymbols::class_initializer_name()) {
     // Never search superclasses for constructors
@@ -1608,7 +1612,9 @@ static jmethodID get_method_id(JNIEnv *env, jclass clazz, const char *name_str,
       m = NULL;
     }
   } else {
+    // lookup_method和lookup_method_in_ordered_interfaces会从父类和接口中查找
     m = klass->lookup_method(name, signature);
+    // 在特定的类中查找方法
     if (m == NULL &&  klass->oop_is_instance()) {
       m = InstanceKlass::cast(klass())->lookup_method_in_ordered_interfaces(name, signature);
     }

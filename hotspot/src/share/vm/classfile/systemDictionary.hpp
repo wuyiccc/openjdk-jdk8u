@@ -419,6 +419,7 @@ public:
   static void initialize_wk_klasses_until(WKID limit_id, WKID &start_id, TRAPS);
   static void initialize_wk_klasses_through(WKID end_id, WKID &start_id, TRAPS) {
     int limit = (int)end_id + 1;
+    // 遍历WK_KLASS_DO宏中表示的所有需要加载的类
     initialize_wk_klasses_until((WKID) limit, start_id, THREAD);
   }
 

@@ -491,6 +491,7 @@ jclass
 FindBootStrapClass(JNIEnv *env, const char* classname)
 {
    if (findBootClass == NULL) {
+       // 返回指向JVM_FindClassFromBootLoader()函数的函数指针
        findBootClass = (FindClassFromBootLoader_t *)dlsym(RTLD_DEFAULT,
           "JVM_FindClassFromBootLoader");
        if (findBootClass == NULL) {

@@ -279,6 +279,11 @@ void ClassFileParser::parse_constant_pool_entries(int length, TRAPS) {
           }
 
           unsigned int hash;
+          // 从字典表中查找对应的Symbol实例
+          // 如果查找不到, 需要暂时将相关的信息存储到临时的names, lengths, indices与hashValues数组中
+          // 这样就可以调用SymbolTable::new_symbols()函数批量添加Symbol实例来提高效率
+          // 如果找到了Symbol实例, 则调用symbol_at_put函数向ConstantPool数据区对应槽位上
+          // 存储指向Symbol实例的指针
           Symbol* result = SymbolTable::lookup_only((char*)utf8_buffer, utf8_length, hash);
           if (result == NULL) {
             names[names_count] = (char*)utf8_buffer;
@@ -302,6 +307,7 @@ void ClassFileParser::parse_constant_pool_entries(int length, TRAPS) {
   }
 
   // Allocate the remaining symbols
+  // 进行Symbol实例的批处理
   if (names_count > 0) {
     SymbolTable::new_symbols(_loader_data, _cp, names_count, names, lengths, indices, hashValues, CHECK);
   }
@@ -327,6 +333,7 @@ constantPoolHandle ClassFileParser::parse_constant_pool(TRAPS) {
   constantPoolHandle nullHandle;
 
   cfs->guarantee_more(3, CHECK_(nullHandle)); // length, first cp tag
+  // 获取常量池大小
   u2 length = cfs->get_u2_fast();
   guarantee_property(
     length >= 1, "Illegal constant pool size %u in class file %s",
@@ -337,10 +344,14 @@ constantPoolHandle ClassFileParser::parse_constant_pool(TRAPS) {
   constantPoolHandle cp (THREAD, constant_pool);
 
   // parsing constant pool entries
+  // 解析常量池选项
   parse_constant_pool_entries(length, CHECK_(nullHandle));
 
   int index = 1;  // declared outside of loops for portability
 
+  if (strcmp(_class_name->as_C_string(), "Test") == 0) {
+    int x = 10;
+  }
   // first verification pass - validate cross references and fixup class and string constants
   for (index = 1; index < length; index++) {          // Index 0 is unused
     jbyte tag = cp->tag_at(index).value();
@@ -353,6 +364,10 @@ constantPoolHandle ClassFileParser::parse_constant_pool(TRAPS) {
       case JVM_CONSTANT_Methodref :
         // fall through
       case JVM_CONSTANT_InterfaceMethodref : {
+        // java8虚拟机规范中的定义
+        // u1 tag u2 class_index u2 name_and_type_index
+        // 由于ConstantPool数据区的一个槽是一个指针类型的宽度, 所以至少有32位的存储空间
+        // 这里我们用低16位存储 class_index, 高16位存储name_and_type_index
         if (!_need_verify) break;
         int klass_ref_index = cp->klass_ref_index_at(index);
         int name_and_type_ref_index = cp->name_and_type_ref_index_at(index);
@@ -403,14 +418,19 @@ constantPoolHandle ClassFileParser::parse_constant_pool(TRAPS) {
       case JVM_CONSTANT_ClassIndex :
         {
           int class_index = cp->klass_index_at(index);
+          // 校验是一个合法的常量池索引
           check_property(valid_symbol_at(class_index),
                  "Invalid constant pool index %u in class file %s",
                  class_index, CHECK_(nullHandle));
+          // 这里将tag的值由JVM_CONSTANT_ClassIndex更新为JVM_CONSTANT_UnresolvedClass,
+          // 原来槽位上存储的index也更新为指向Symbol实例的指针, 减少了一层解析
           cp->unresolved_klass_at_put(index, cp->symbol_at(class_index));
         }
         break;
       case JVM_CONSTANT_StringIndex :
         {
+          // 这里对前面常量池的解析进行修正, 原本存储的是指向CONSTANT_Utf8_info类型常量的索引的
+          // 现在这里直接转为指向对应的Symbol的值, 减少了一层解析
           int string_index = cp->string_index_at(index);
           check_property(valid_symbol_at(string_index),
                  "Invalid constant pool index %u in class file %s",
@@ -3965,6 +3985,9 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
   _relax_verify = relax_format_check_for(_loader_data);
 
   // Constant pool
+  if (strcmp(name->as_C_string(), "Test") == 0) {
+    int x = 10;
+  }
   constantPoolHandle cp = parse_constant_pool(CHECK_(nullHandle));
 
   int cp_size = cp->length();
@@ -3992,7 +4015,7 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
     _this_class_index, CHECK_(nullHandle));
 
   // _this_class_index 指向的是常量池中CONSTANT_Class_info的位置
-  // 然后经过二次转换之后 最终指向了 CONSTANT_Utf8_info的存储字符串类名的位置
+  // 最终指向了 CONSTANT_Utf8_info的存储字符串类名的位置: 这一步转换在解析常量池的时候就已经指向Symbol了
   Symbol*  class_name  = cp->unresolved_klass_at(_this_class_index);
   assert(class_name != NULL, "class_name can't be null");
 

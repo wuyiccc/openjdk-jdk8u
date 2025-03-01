@@ -76,6 +76,9 @@ ConstantPool::ConstantPool(Array<u1>* tags) {
   // initialize tag array
   int length = tags->length();
   for (int index = 0; index < length; index++) {
+    // tags数组中元素值都被初始化为JVM_CONSTANT_Invalid
+    // 在分析具体的常量池项的时候会更新为jvm.h中对应的enum值 比如 JVM_CONSTANT_Utf8
+    // 由于常量池中第一项保留, 所以这一项永远为JVM_CONSTANT_Invalid
     tags->at_put(index, JVM_CONSTANT_Invalid);
   }
   set_tags(tags);
@@ -203,6 +206,7 @@ Klass* ConstantPool::klass_at_impl(constantPoolHandle this_oop, int which, TRAPS
 
   CPSlot entry = this_oop->slot_at(which);
   if (entry.is_resolved()) {
+    // 如果槽位上存储的是指向Klass实例的指针, 则直接返回即可
     assert(entry.get_klass()->is_klass(), "must be");
     // Already resolved - return entry.
     return entry.get_klass();
@@ -249,6 +253,7 @@ Klass* ConstantPool::klass_at_impl(constantPoolHandle this_oop, int which, TRAPS
     // this_oop must be unlocked during resolve_or_fail
     oop protection_domain = this_oop->pool_holder()->protection_domain();
     Handle h_prot (THREAD, protection_domain);
+    // 获取klass实例, 这里开始执行类加载了
     Klass* k_oop = SystemDictionary::resolve_or_fail(name, loader, h_prot, true, THREAD);
     KlassHandle k;
     if (!HAS_PENDING_EXCEPTION) {
@@ -311,6 +316,7 @@ Klass* ConstantPool::klass_at_impl(constantPoolHandle this_oop, int which, TRAPS
       // Only updated constant pool - if it is resolved.
       do_resolve = this_oop->tag_at(which).is_unresolved_klass();
       if (do_resolve) {
+        // 更新常量池中槽上的值, 将原来指向Symbol实例的指针改为指向Klass实例的指针
         this_oop->klass_at_put(which, k());
       }
     }

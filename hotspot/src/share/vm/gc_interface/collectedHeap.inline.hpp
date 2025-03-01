@@ -213,7 +213,9 @@ oop CollectedHeap::obj_allocate(KlassHandle klass, int size, TRAPS) {
   debug_only(check_for_valid_allocation_state());
   assert(!Universe::heap()->is_gc_active(), "Allocation during gc not allowed");
   assert(size >= 0, "int won't convert to size_t");
+  // 在java堆中为oop实例分配内存并初始化为0
   HeapWord* obj = common_mem_allocate_init(klass, size, CHECK_NULL);
+  // 初始化oop实例的对象头
   post_allocation_setup_obj(klass, obj, size);
   NOT_PRODUCT(Universe::heap()->check_for_bad_heap_word_value(obj, size));
   return (oop)obj;

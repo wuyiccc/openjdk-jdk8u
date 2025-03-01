@@ -273,6 +273,7 @@ InstanceKlass::InstanceKlass(int vtable_len,
   int iksize = InstanceKlass::size(vtable_len, itable_len, nonstatic_oop_map_size,
                                    access_flags.is_interface(), is_anonymous);
 
+  // 在创建的InstanceKlass实例中保存Class文件解析的部分结果
   set_vtable_length(vtable_len);
   set_itable_length(itable_len);
   set_static_field_size(static_field_size);
@@ -303,6 +304,7 @@ InstanceKlass::InstanceKlass(int vtable_len,
   set_has_unloaded_dependent(false);
   set_init_state(InstanceKlass::allocated);
   set_init_thread(NULL);
+  // 设置类的状态为已分配
   set_init_state(allocated);
   set_reference_type(rt);
   set_oop_map_cache(NULL);
@@ -331,6 +333,8 @@ InstanceKlass::InstanceKlass(int vtable_len,
 
   // Set temporary value until parseClassFile updates it with the real instance
   // size.
+  // 暂时将_layout_helper的值初始化为0, 等类解析完成后会更新此值
+  // 可以从更新后的值中获取创建实例的内存空间(这里的实例显然指的是java对象, 也就是对应的oop实例)
   set_layout_helper(Klass::instance_layout_helper(0, true));
 }
 
@@ -1398,7 +1402,9 @@ void InstanceKlass::do_local_static_fields(void f(fieldDescriptor*, Handle, TRAP
 
 void InstanceKlass::do_local_static_fields_impl(instanceKlassHandle this_k,
                              void f(fieldDescriptor* fd, Handle mirror, TRAPS), Handle mirror, TRAPS) {
+  // 通过JavaFieldStream提供的方法迭代遍历InstanceKlass实例中声明的所有字段
   for (JavaFieldStream fs(this_k()); !fs.done(); fs.next()) {
+    // 只处理静态字段, 因为只有静态字段的值会保存到java.lang.Class对象中
     if (fs.access_flags().is_static()) {
       fieldDescriptor& fd = fs.field_descriptor();
       f(&fd, mirror, CHECK);

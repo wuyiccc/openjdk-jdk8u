@@ -51,7 +51,9 @@ class ClassFileParser VALUE_OBJ_CLASS_SPEC {
   u2   _minor_version;
   u2   _this_class_index;
   // the java class name
+  // 类名称
   Symbol* _class_name;
+  // 加载类的类加载器
   ClassLoaderData* _loader_data;
   KlassHandle _host_klass;
   GrowableArray<Handle>* _cp_patches; // overrides for CP entries
@@ -72,18 +74,24 @@ class ClassFileParser VALUE_OBJ_CLASS_SPEC {
   // Metadata created before the instance klass is created.  Must be deallocated
   // if not transferred to the InstanceKlass upon successful class loading
   // in which case these pointers have been set to NULL.
+  // 父类
   instanceKlassHandle _super_klass;
+  // 常量池引用
   ConstantPool*    _cp;
+  // 类中定义的变量和方法
   Array<u2>*       _fields;
   Array<Method*>*  _methods;
   Array<u2>*       _inner_classes;
+  // 直接实现的接口
   Array<Klass*>*   _local_interfaces;
+  // 实现的所有接口(包括直接和间接实现的接口)
   Array<Klass*>*   _transitive_interfaces;
   Annotations*     _combined_annotations;
   AnnotationArray* _annotations;
   AnnotationArray* _type_annotations;
   Array<AnnotationArray*>* _fields_annotations;
   Array<AnnotationArray*>* _fields_type_annotations;
+  // 表示类的InstanceKlass实例, 类最终解析的结果会存储到该实例中
   InstanceKlass*   _klass;  // InstanceKlass once created.
 
   void set_class_synthetic_flag(bool x)        { _synthetic_flag = x; }
@@ -205,7 +213,7 @@ class ClassFileParser VALUE_OBJ_CLASS_SPEC {
 
   enum { fixed_buffer_size = 128 };
   u_char linenumbertable_buffer[fixed_buffer_size];
-
+  // Class文件对应的字节流, 从字节流中读取信息并解析
   ClassFileStream* _stream;              // Actual input stream
 
   enum { LegalClass, LegalField, LegalMethod }; // used to verify unqualified names

@@ -21,7 +21,7 @@
  * questions.
  *
  */
-
+#include <string.h>
 #include "precompiled.hpp"
 #include "classfile/classFileParser.hpp"
 #include "classfile/classLoader.hpp"
@@ -774,6 +774,7 @@ Array<Klass*>* ClassFileParser::parse_interfaces(int length,
   } else {
     ClassFileStream* cfs = stream();
     assert(length > 0, "only called for length>0");
+    // 调用工厂函数创建一个大小为length的数组, 元素的类型为Klass*
     _local_interfaces = MetadataFactory::new_array<Klass*>(_loader_data, length, NULL, CHECK_NULL);
 
     int index;
@@ -785,6 +786,7 @@ Array<Klass*>* ClassFileParser::parse_interfaces(int length,
         "Interface name has bad constant pool index %u in class file %s",
         interface_index, CHECK_NULL);
       if (_cp->tag_at(interface_index).is_klass()) {
+        // 将代表接口的InstanceKlass实例封装为KlassHandle实例
         interf = KlassHandle(THREAD, _cp->resolved_klass_at(interface_index));
       } else {
         Symbol*  unresolved_klass  = _cp->klass_name_at(interface_index);
@@ -3238,6 +3240,7 @@ instanceKlassHandle ClassFileParser::parse_super_class(int super_class_index,
                                                        TRAPS) {
   instanceKlassHandle super_klass;
   if (super_class_index == 0) {
+    // 当前类为java.lang.Object的时候, 没有父类, 索引为0
     check_property(_class_name == vmSymbols::java_lang_Object(),
                    "Invalid superclass index %u in class file %s",
                    super_class_index,
@@ -3250,6 +3253,7 @@ instanceKlassHandle ClassFileParser::parse_super_class(int super_class_index,
     // The class name should be legal because it is checked when parsing constant pool.
     // However, make sure it is not an array type.
     bool is_array = false;
+    // 判断常量池中super_class_index下标索引处存储的是否为JVM_CONSTANT_Class常量池项, 如果是则is_klass()函数将返回true
     if (_cp->tag_at(super_class_index).is_klass()) {
       super_klass = instanceKlassHandle(THREAD, _cp->resolved_klass_at(super_class_index));
       if (_need_verify)
@@ -3955,6 +3959,10 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
   _major_version = major_version;
   _minor_version = minor_version;
 
+  if (strcmp(name->as_C_string(), "Test$TestZero") == 0 || strcmp(name->as_C_string(), "Test$D") == 0) {
+    int x = 10;
+  }
+
 
   // Check if verification needs to be relaxed for this class file
   // Do not restrict it to jdk1.0 or jdk1.1 to maintain backward compatibility (4982376)
@@ -3969,6 +3977,7 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
 
   // Access flags
   AccessFlags access_flags;
+  // 类访问表示, 与JVM_RECOGNIZED_CLASS_MODIFIERS作与操作, 过滤掉非法的访问标识
   jint flags = cfs->get_u2_fast() & JVM_RECOGNIZED_CLASS_MODIFIERS;
 
   if ((flags & JVM_ACC_INTERFACE) && _major_version < JAVA_6_VERSION) {
@@ -3986,6 +3995,8 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
     "Invalid this class index %u in constant pool in class file %s",
     _this_class_index, CHECK_(nullHandle));
 
+  // _this_class_index 指向的是常量池中CONSTANT_Class_info的位置
+  // 然后经过二次转换之后 最终指向了 CONSTANT_Utf8_info的存储字符串类名的位置
   Symbol*  class_name  = cp->unresolved_klass_at(_this_class_index);
   assert(class_name != NULL, "class_name can't be null");
 
@@ -4043,12 +4054,13 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
       }
     }
 #endif
-
+    // 获取指向父类名称的索引地址
     u2 super_class_index = cfs->get_u2_fast();
     instanceKlassHandle super_klass = parse_super_class(super_class_index,
                                                         CHECK_NULL);
 
     // Interfaces
+    // 获取接口数量
     u2 itfs_len = cfs->get_u2_fast();
     Array<Klass*>* local_interfaces =
       parse_interfaces(itfs_len, protection_domain, _class_name,
@@ -4100,6 +4112,7 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
                            "Interfaces must have java.lang.Object as superclass in class file %s",
                            CHECK_(nullHandle));
       }
+      // 这里判断父类为null的话, 会触发父类的加载
       Klass* k = SystemDictionary::resolve_super_or_fail(class_name, sk,
                                                          class_loader,
                                                          protection_domain,
@@ -4175,6 +4188,8 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
     }
 
     // We can now create the basic Klass* for this klass
+    // 计算InstanceKlass实例需要占用的内存空间并在metaspace中分配内存, 然后调用InstanceKlass的构造函数在堆中分配内存
+
     _klass = InstanceKlass::allocate_instance_klass(loader_data,
                                                     vtable_size,
                                                     itable_size,
@@ -4194,17 +4209,23 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
 
     // Fill in information already parsed
     this_klass->set_should_verify_class(verify);
+    // 在完成字段解析后, 就会计算出oop实例的内存空间, 更新InstanceKlass中的_layout_helper属性的值
     jint lh = Klass::instance_layout_helper(info.instance_size, false);
     this_klass->set_layout_helper(lh);
     assert(this_klass->oop_is_instance(), "layout is correct");
     assert(this_klass->size_helper() == info.instance_size, "correct size_helper");
     // Not yet: supers are done below to support the new subtype-checking fields
     //this_klass->set_super(super_klass());
+    // 保存加载当前类的类加载器
     this_klass->set_class_loader_data(loader_data);
+    // 通过_static_field_size保存非静态字段需要占用的内存空间
+    // 在计算oop实例需要占用的内存空间的时候非常重要, 因为非静态字段存储在oop实例中
     this_klass->set_nonstatic_field_size(info.nonstatic_field_size);
     this_klass->set_has_nonstatic_fields(info.has_nonstatic_fields);
+    // 通过_static_oop_field_count属性保存静态字段中对象类型字段的数量
     this_klass->set_static_oop_field_count(fac.count[STATIC_OOP]);
-
+    // 通过调用如下函数将类直接实现的接口保存在_local_interfaces属性中
+    // 将类直接和间接实现的接口保存在_transitive_interface属性中
     apply_parsed_class_metadata(this_klass, java_fields_count, CHECK_NULL);
 
     if (has_final_method) {
@@ -4217,12 +4238,14 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
     // that changes, then InstanceKlass::idnum_can_increment()
     // has to be changed accordingly.
     this_klass->set_initial_method_idnum(methods->length());
+    // 通过name属性保存类的名称
     this_klass->set_name(cp->klass_name_at(_this_class_index));
     if (is_anonymous())  // I am well known to myself
       cp->klass_at_put(_this_class_index, this_klass()); // eagerly resolve
 
     this_klass->set_minor_version(minor_version);
     this_klass->set_major_version(major_version);
+    // 如果有从接口继承的默认方法, 则设置当前类中有默认的方法
     this_klass->set_has_default_methods(has_default_methods);
     this_klass->set_declares_default_methods(declares_default_methods);
 
@@ -4261,6 +4284,8 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
     }
 
     // Fill in information needed to compute superclasses.
+    // Klass::initialize_supers()函数会初始化_primary_supers, super_check_offset, _secondary_supers
+    // 与 _secondary_super_cache属性, 以加快判断类之间的关系
     this_klass->initialize_supers(super_klass(), CHECK_(nullHandle));
 
     // Initialize itable offset tables
@@ -4271,6 +4296,7 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
     fill_oop_maps(this_klass, info.nonstatic_oop_map_count, info.nonstatic_oop_offsets, info.nonstatic_oop_counts);
 
     // Fill in has_finalizer, has_vanilla_constructor, and layout_helper
+    // 通过access_flags中的位标识当前类的一些属性, 如是否有finalize()方法等
     set_precomputed_flags(this_klass);
 
     // reinitialize modifiers, using the InnerClasses attribute
@@ -4295,6 +4321,7 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
     }
 
     // Allocate mirror and initialize static fields
+    // 为InstanceKlass实例创建java.lang.Class对象并初始化静态字段
     java_lang_Class::create_mirror(this_klass, class_loader, protection_domain,
                                    CHECK_(nullHandle));
 

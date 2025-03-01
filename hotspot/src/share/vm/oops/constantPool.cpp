@@ -512,11 +512,13 @@ Symbol* ConstantPool::klass_name_at(int which) const {
   // tag is not updated atomicly.
   CPSlot entry = slot_at(which);
   if (entry.is_resolved()) {
+    // 如果已经连接, 那么获取指向InstanceKlass实例的指针
     // Already resolved - return entry's name.
     assert(entry.get_klass()->is_klass(), "must be");
     return entry.get_klass()->name();
   } else {
     assert(entry.is_unresolved(), "must be either symbol or klass");
+    // 还未获得连接, 获取执行Symbol实例的指针
     return entry.get_symbol();
   }
 }

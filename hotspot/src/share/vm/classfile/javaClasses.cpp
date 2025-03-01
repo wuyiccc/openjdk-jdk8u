@@ -487,6 +487,7 @@ void java_lang_String::print(oop java_string, outputStream* st) {
 
 static void initialize_static_field(fieldDescriptor* fd, Handle mirror, TRAPS) {
   assert(mirror.not_null() && fd->is_static(), "just checking");
+  // 如果静态字段有初始值, 则将此值保存到oop实例中对应的存储字段的槽位上
   if (fd->has_initial_value()) {
     BasicType t = fd->field_type();
     switch (t) {
@@ -566,6 +567,8 @@ void java_lang_Class::initialize_mirror_fields(KlassHandle k,
   set_protection_domain(mirror(), protection_domain());
 
   // Initialize static fields
+  // do_local_static_fields函数会对静态字段进行初始化
+  // 此时传入的initialize_static_field是函数指针
   InstanceKlass::cast(k())->do_local_static_fields(&initialize_static_field, mirror, CHECK);
 }
 
@@ -582,13 +585,19 @@ void java_lang_Class::create_mirror(KlassHandle k, Handle class_loader,
   // the mirror.
   if (SystemDictionary::Class_klass_loaded()) {
     // Allocate mirror (java.lang.Class instance)
+    // allocate_instance函数会计算oop实例所占用的内存大小, 然后分配内存空间
+    // 最后创建oop实例, 不过在分配内存空间的时候, 会考虑静态变量, 所以说Java类的静态变量存储在java.lang.Class对象中
+
+    // 创建表示java.lang.Class的oop实例
     Handle mirror = InstanceMirrorKlass::cast(SystemDictionary::Class_klass())->allocate_instance(k, CHECK);
 
     // Setup indirection from mirror->klass
     if (!k.is_null()) {
+      // 在 mirror klass的oop实例中的某个偏移量存储指向InstanceKlass实例的引用
       java_lang_Class::set_klass(mirror(), k());
     }
 
+    // mirror是instanceOop实例, 调用mirror->klass() 可以获取指向InstanceMirrorKlass实例的指针
     InstanceMirrorKlass* mk = InstanceMirrorKlass::cast(mirror->klass());
     assert(oop_size(mirror()) == mk->instance_size(k), "should have been set");
 
@@ -601,6 +610,7 @@ void java_lang_Class::create_mirror(KlassHandle k, Handle class_loader,
       if (k->oop_is_typeArray()) {
       // k是TypeArrayKlass实例, 这里获取的是对应组件类型type的mirror的值
         BasicType type = TypeArrayKlass::cast(k())->element_type();
+        // oop转为Handle, 这里调用了Handle的转换构造函数, 内部handle会持有oop对象
         comp_mirror = Universe::java_mirror(type);
       } else {
       // k是ObjectArrayKlass实例
@@ -635,6 +645,7 @@ void java_lang_Class::create_mirror(KlassHandle k, Handle class_loader,
     // Setup indirection from klass->mirror last
     // after any exceptions can happen during allocations.
     if (!k.is_null()) {
+      // InstanceKlass的mirror也指向对应的mirror oop实例
       k->set_java_mirror(mirror());
     }
   } else {

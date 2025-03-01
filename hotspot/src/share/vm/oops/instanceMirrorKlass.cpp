@@ -366,6 +366,7 @@ instanceOop InstanceMirrorKlass::allocate_instance(KlassHandle k, TRAPS) {
 
   // Since mirrors can be variable sized because of the static fields, store
   // the size in the mirror itself.
+  // 在oop实例中的偏移位置为_oop_size_offset处保存当前实例的大小
   java_lang_Class::set_oop_size(i, size);
 
   return i;

@@ -3959,10 +3959,6 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
   _major_version = major_version;
   _minor_version = minor_version;
 
-  if (strcmp(name->as_C_string(), "Test$TestZero") == 0 || strcmp(name->as_C_string(), "Test$D") == 0) {
-    int x = 10;
-  }
-
 
   // Check if verification needs to be relaxed for this class file
   // Do not restrict it to jdk1.0 or jdk1.1 to maintain backward compatibility (4982376)
@@ -4319,6 +4315,13 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
         check_illegal_static_method(this_klass, CHECK_(nullHandle));
       }
     }
+
+//    if (strcmp(name->as_C_string(), "Test$TestZero") == 0
+//    || strcmp(name->as_C_string(), "Test$D") == 0
+//    || strcmp(name->as_C_string(), "Test$TestStatic") == 0) {
+//        int x = 10;
+//    }
+
 
     // Allocate mirror and initialize static fields
     // 为InstanceKlass实例创建java.lang.Class对象并初始化静态字段

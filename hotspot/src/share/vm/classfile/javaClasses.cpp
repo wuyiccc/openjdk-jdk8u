@@ -21,7 +21,7 @@
  * questions.
  *
  */
-
+#include <string.h>
 #include "precompiled.hpp"
 #include "classfile/altHashing.hpp"
 #include "classfile/javaClasses.hpp"
@@ -486,8 +486,12 @@ void java_lang_String::print(oop java_string, outputStream* st) {
 
 
 static void initialize_static_field(fieldDescriptor* fd, Handle mirror, TRAPS) {
+//  if (strcmp(fd->name()->as_C_string(), "myTestStr") == 0) {
+//    int x = 10;
+//  }
   assert(mirror.not_null() && fd->is_static(), "just checking");
   // 如果静态字段有初始值, 则将此值保存到oop实例中对应的存储字段的槽位上
+  // ps: 这里应该是初始化ConstantValue类型的字段, 比如 static final String value = "temp" 在字节码中就是对应一个ConstantValue
   if (fd->has_initial_value()) {
     BasicType t = fd->field_type();
     switch (t) {

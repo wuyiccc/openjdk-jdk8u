@@ -110,7 +110,7 @@ void ArrayKlass::complete_create_array_klass(ArrayKlass* k, KlassHandle super_kl
   k->initialize_supers(super_klass(), CHECK);
   // 初始化vtable
   k->vtable()->initialize_vtable(false, CHECK);
-  // 设置_component_mirror属性
+  // 设置_component_mirror属性, Handle对象并不在堆中或者元空间中, 而是直接通过malloc申请的区域
   java_lang_Class::create_mirror(k, Handle(THREAD, k->class_loader()), Handle(NULL), CHECK);
 }
 

@@ -527,6 +527,7 @@ private:
 
 
 //%note allocation_1
+// 定义在resourceArea.cpp文件中
 extern char* resource_allocate_bytes(size_t size,
     AllocFailType alloc_failmode = AllocFailStrategy::EXIT_OOM);
 extern char* resource_allocate_bytes(Thread* thread, size_t size,

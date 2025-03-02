@@ -646,7 +646,7 @@ enum BasicType {
   T_OBJECT      = 12,
   T_ARRAY       = 13,
   T_VOID        = 14,
-  T_ADDRESS     = 15,
+  T_ADDRESS     = 15, // ret指令用到该值, 表示返回地址returnAddress类型
   T_NARROWOOP   = 16,
   T_METADATA    = 17,
   T_NARROWKLASS = 18,

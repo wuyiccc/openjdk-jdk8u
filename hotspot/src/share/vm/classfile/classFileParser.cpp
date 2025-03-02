@@ -349,9 +349,7 @@ constantPoolHandle ClassFileParser::parse_constant_pool(TRAPS) {
 
   int index = 1;  // declared outside of loops for portability
 
-  if (strcmp(_class_name->as_C_string(), "Test") == 0) {
-    int x = 10;
-  }
+
   // first verification pass - validate cross references and fixup class and string constants
   for (index = 1; index < length; index++) {          // Index 0 is unused
     jbyte tag = cp->tag_at(index).value();
@@ -1031,10 +1029,15 @@ void ClassFileParser::parse_field_attributes(u2 attributes_count,
 // Field allocation types. Used for computing field offsets.
 
 enum FieldAllocationType {
+  // 引用类型
   STATIC_OOP,           // Oops
+  // 字节类型
   STATIC_BYTE,          // Boolean, Byte, char
+  // 短整型
   STATIC_SHORT,         // shorts
+  // 双字类型
   STATIC_WORD,          // ints
+  // 浮点类型
   STATIC_DOUBLE,        // aligned long or double
   NONSTATIC_OOP,
   NONSTATIC_BYTE,
@@ -1097,15 +1100,19 @@ static FieldAllocationType basic_type_to_atype(bool is_static, BasicType type) {
 
 class FieldAllocationCount: public ResourceObj {
  public:
+  // 用来统计静态与非静态情况下各个类型变量的数量
+  // 这些类型用枚举FieldAllocationType来定义
   u2 count[MAX_FIELD_ALLOCATION_TYPE];
 
   FieldAllocationCount() {
+    // 枚举常量值为10, 初始化count数组中的值为0
     for (int i = 0; i < MAX_FIELD_ALLOCATION_TYPE; i++) {
       count[i] = 0;
     }
   }
-
+  // 更新对应类型字段的总数量
   FieldAllocationType update(bool is_static, BasicType type) {
+    // 基本数据类型转对应的存储空间类型
     FieldAllocationType atype = basic_type_to_atype(is_static, type);
     // Make sure there is no overflow with injected fields.
     assert(count[atype] < 0xFFFF, "More than 65535 fields");
@@ -1148,6 +1155,14 @@ Array<u2>* ClassFileParser::parse_fields(Symbol* class_name,
   // index. After parsing all fields, the data are copied to a permanent
   // array and any unused slots will be discarded.
   ResourceMark rm(THREAD);
+  // 分配的内存空间为 n * (6 + 1)
+  // 其中 access, name, sig index, initial value index, low_offset, hight_offset 6个
+  // 加上一个可选的generic signature index
+  // 分配完成之后最后根据实际占用情况进行复制, 去掉分配多余的generic signature index 数据
+  // 需要注意的是, 这里给field字段解析分配的内存空间并不在java堆中或者元空间中, 而是直接通过malloc直接去分配的内存
+  // 所以这里区域应该在c++概念中的直接内存中
+  // ps: 虽然这里是用直接内存分配的fa对象, 但是后面在解析完毕之后, 重新整理fa的内存空间, 去掉多余的空间数据的时候
+  // 是通过MetaSpaceFactory在元空间中重新申请了一块新的内存, 该内存是根据实际占用空间分配的大小, 所以最后fields还是占据的元数据空间
   u2* fa = NEW_RESOURCE_ARRAY_IN_THREAD(
              THREAD, u2, total_fields * (FieldInfo::field_slots + 1));
 
@@ -1155,6 +1170,10 @@ Array<u2>* ClassFileParser::parse_fields(Symbol* class_name,
   int generic_signature_slot = total_fields * FieldInfo::field_slots;
   int num_generic_signature = 0;
   for (int n = 0; n < length; n++) {
+    // 根据java8虚拟机规范中的描述, 字段结构由field_info结构所定义
+    // 在同一个class文件中, 不会有两个字段同时具有相同的字段名和描述符
+    // field_info的结构如下
+    // u2 access_flags(访问标识类型), u2 name_index(字段名称), u2 descriptor_index(字段类型名称), u2 attributes_count(属性数量 比如字段赋值的信息), attribute_info attributes[attributes_count]
     cfs->guarantee_more(8, CHECK_NULL);  // access_flags, name_index, descriptor_index, attributes_count
 
     AccessFlags access_flags;
@@ -1228,6 +1247,7 @@ Array<u2>* ClassFileParser::parse_fields(Symbol* class_name,
     BasicType type = _cp->basic_type_for_signature_at(signature_index);
 
     // Remember how many oops we encountered and compute allocation type
+    // 对当前解析到的字段类型数量进行统计更新
     FieldAllocationType atype = fac->update(is_static, type);
     field->set_allocation_type(atype);
 
@@ -1280,6 +1300,8 @@ Array<u2>* ClassFileParser::parse_fields(Symbol* class_name,
   // the fields array could be too long.  In that case the
   // fields array is trimed. Also unused slots that were reserved
   // for generic signature indexes are discarded.
+  //c 这里重新计算实际占用空间, 去掉了空间末尾多余的generic signature index数据
+  // 然后将fa的数据复制到fields中
   Array<u2>* fields = MetadataFactory::new_array<u2>(
           _loader_data, index * FieldInfo::field_slots + num_generic_signature,
           CHECK_NULL);
@@ -4086,7 +4108,11 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
                        &has_default_methods, CHECK_(nullHandle));
 
     u2 java_fields_count = 0;
+    if (strcmp(name->as_C_string(), "Test") == 0) {
+      int testf = 10;
+    }
     // Fields (offsets are filled in later)
+    // 解析字段信息
     FieldAllocationCount fac;
     Array<u2>* fields = parse_fields(class_name,
                                      access_flags.is_interface(),

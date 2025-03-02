@@ -3449,14 +3449,16 @@ void ClassFileParser::layout_fields(Handle class_loader,
   // to figure out if we still need to do this.
   int* nonstatic_oop_offsets;
   unsigned int* nonstatic_oop_counts;
+  // 保存OopMapBlock的数量
   unsigned int nonstatic_oop_map_count = 0;
   unsigned int max_nonstatic_oop_maps  = fac->count[NONSTATIC_OOP] + 1;
 
+  // 两个变量初始化为max_nonstatic_oop_maps大小的整数数组
   nonstatic_oop_offsets = NEW_RESOURCE_ARRAY_IN_THREAD(
             THREAD, int, max_nonstatic_oop_maps);
   nonstatic_oop_counts  = NEW_RESOURCE_ARRAY_IN_THREAD(
             THREAD, unsigned int, max_nonstatic_oop_maps);
-
+  // 当前类中生命的所有对象类型变量中, 第一个对象类型变量布局的偏移位置
   first_nonstatic_oop_offset = 0; // will be set for first oop field
 
   bool compact_fields   = CompactFields;
@@ -3646,6 +3648,7 @@ void ClassFileParser::layout_fields(Handle class_loader,
         next_static_double_offset += BytesPerLong;
         break;
       case NONSTATIC_OOP:
+      // 循环变量当前类中定义的所有字段, 如果字段的类型为对象类型, 则执行如下逻辑
         if( nonstatic_oop_space_count > 0 ) {
           real_offset = nonstatic_oop_space_offset;
           nonstatic_oop_space_offset += heapOopSize;
@@ -3655,18 +3658,24 @@ void ClassFileParser::layout_fields(Handle class_loader,
           next_nonstatic_oop_offset += heapOopSize;
         }
         // Update oop maps
+        // 生成OopMapBlock需要的信息
         if( nonstatic_oop_map_count > 0 &&
             nonstatic_oop_offsets[nonstatic_oop_map_count - 1] ==
             real_offset -
             int(nonstatic_oop_counts[nonstatic_oop_map_count - 1]) *
             heapOopSize ) {
           // Extend current oop map
+          // 扩展当前的OopMapBlock, 也就是更新_count的值
           assert(nonstatic_oop_map_count - 1 < max_nonstatic_oop_maps, "range check");
           nonstatic_oop_counts[nonstatic_oop_map_count - 1] += 1;
         } else {
           // Create new oop map
+          // 第一次处理当前类的对象类型变量的时候, 由于nonstatic_oop_map_count为0 会进入这个逻辑
+          // 创建一个新的OopMapBlock
           assert(nonstatic_oop_map_count < max_nonstatic_oop_maps, "range check");
+          // OopMapBlock中的偏移量
           nonstatic_oop_offsets[nonstatic_oop_map_count] = real_offset;
+          // OopMapBlock中的_count
           nonstatic_oop_counts [nonstatic_oop_map_count] = 1;
           nonstatic_oop_map_count += 1;
           if( first_nonstatic_oop_offset == 0 ) { // Undefined
@@ -3864,6 +3873,8 @@ void ClassFileParser::layout_fields(Handle class_loader,
          (nonstatic_fields_count > 0), "double-check nonstatic start/end");
 
   // Number of non-static oop map blocks allocated at end of klass.
+  // 计算InstanceKlass实例需要的OopMapBlock数量
+  // 子类InstanceKlass的OopMapBlock可会跟父类共用一个OopMapBlock
   const unsigned int total_oop_map_count =
     compute_oop_map_count(_super_klass, nonstatic_oop_map_count,
                           first_nonstatic_oop_offset);
@@ -4268,6 +4279,9 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
     // 对类字段进行布局
     layout_fields(class_loader, &fac, &parsed_annotations, &info, CHECK_NULL);
 
+    // 调用nonstatic_oop_map_size()函数计算多个OopMapBlock在InstanceKlass
+    // 实例中需要占用的内存空间, 最终oop_map_count个OopMapBlock会存储到InstanceKlass实例中的itable之后
+    // 第一个OopMapBlock相对于InstanceKlass首地址的偏移量是可以被计算出来的
     int total_oop_map_size2 =
           InstanceKlass::nonstatic_oop_map_size(info.total_oop_map_count);
 
@@ -4385,6 +4399,7 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
 
     // Compute transitive closure of interfaces this class implements
     // Do final class setup
+    // 填充OopMapBlock信息
     fill_oop_maps(this_klass, info.nonstatic_oop_map_count, info.nonstatic_oop_offsets, info.nonstatic_oop_counts);
 
     // Fill in has_finalizer, has_vanilla_constructor, and layout_helper
@@ -4492,6 +4507,12 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
 
   // Clear class if no error has occurred so destructor doesn't deallocate it
   _klass = NULL;
+  // test
+//  if (strcmp(name->as_C_string(), "Test$ClassB") == 0) {
+//    this_klass.print();
+//    int i = this_klass->nonstatic_oop_map_count();
+//    int k = i;
+//  }
   return this_klass;
 }
 
@@ -4588,17 +4609,22 @@ ClassFileParser::compute_oop_map_count(instanceKlassHandle super,
     if (map_count == 0) {
       map_count = nonstatic_oop_map_count;
     } else {
+      // 计算当前类是自己生成OopMapBlock, 还是扩展父类最后一个OopMapBlock
       // Check whether we should add a new map block or whether the last one can
       // be extended
       OopMapBlock* const first_map = super->start_of_nonstatic_oop_maps();
       OopMapBlock* const last_map = first_map + map_count - 1;
 
+      // 父类对象类型字段区域末尾的偏移
       int next_offset = last_map->offset() + last_map->count() * heapOopSize;
       if (next_offset == first_nonstatic_oop_offset) {
         // There is no gap bettwen superklass's last oop field and first
         // local oop field, merge maps.
+        // 如果父类对象类型字段的末尾位置和子类对象类型字段的开始位置相同,
+        // 则说明对象类型字段中间没有间隔, 直接扩展从父类继承的OopMapBlock即可
         nonstatic_oop_map_count -= 1;
       } else {
+        // 子类自己需要一个新的OopMapBlcok
         // Superklass didn't end with a oop field, add extra maps
         assert(next_offset < first_nonstatic_oop_offset, "just checking");
       }
@@ -4618,6 +4644,7 @@ void ClassFileParser::fill_oop_maps(instanceKlassHandle k,
   const unsigned int super_count = super ? super->nonstatic_oop_map_count() : 0;
   if (super_count > 0) {
     // Copy maps from superklass
+    // 将父类的OopMapBlock信息复制到当前的InstanceKlass实例中
     OopMapBlock* super_oop_map = super->start_of_nonstatic_oop_maps();
     for (unsigned int i = 0; i < super_count; ++i) {
       *this_oop_map++ = *super_oop_map++;
@@ -4629,14 +4656,18 @@ void ClassFileParser::fill_oop_maps(instanceKlassHandle k,
       // The counts differ because there is no gap between superklass's last oop
       // field and the first local oop field.  Extend the last oop map copied
       // from the superklass instead of creating new one.
+      // 扩展从父类复制的最后一个OopMapBlock, 这样子类就不需要自己再创建一个新的OopMapBlock,
+      // OopMapBlock的数量就会少1
       nonstatic_oop_map_count--;
       nonstatic_oop_offsets++;
       this_oop_map--;
+      // 更新父类复制的OopMapBlock的_count属性
       this_oop_map->set_count(this_oop_map->count() + *nonstatic_oop_counts++);
       this_oop_map++;
     }
 
     // Add new map blocks, fill them
+    // 当前类需要自己创建一个OopMapBlock
     while (nonstatic_oop_map_count-- > 0) {
       this_oop_map->set_offset(*nonstatic_oop_offsets++);
       this_oop_map->set_count(*nonstatic_oop_counts++);

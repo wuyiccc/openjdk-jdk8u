@@ -224,6 +224,7 @@ class java_lang_String : AllStatic {
   macro(java_lang_Class, init_lock,              object_signature,  false) \
   macro(java_lang_Class, signers,                object_signature,  false)
 
+// 在c++层面定义了java_lang_Class是为了方便操作内存中对应字段的信息
 class java_lang_Class : AllStatic {
   friend class VMStructs;
 
@@ -251,6 +252,7 @@ class java_lang_Class : AllStatic {
   static void set_class_loader(oop java_class, oop class_loader);
   static void initialize_mirror_fields(KlassHandle k, Handle mirror, Handle protection_domain, TRAPS);
  public:
+  // 在java类解析完成之后调用, 计算出7个注入的字段在Class的 oop对象实例中的偏移量
   static void compute_offsets();
 
   // Instance creation

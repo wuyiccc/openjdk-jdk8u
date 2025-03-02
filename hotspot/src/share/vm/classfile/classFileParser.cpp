@@ -1269,6 +1269,7 @@ Array<u2>* ClassFileParser::parse_fields(Symbol* class_name,
           if (name      == _cp->symbol_at(f->name_index()) &&
               signature == _cp->symbol_at(f->signature_index())) {
             // Symbol is desclared in Java so skip this one
+            // 需要注入字段的名称已经在java类中生命了, 不需要通过注入的手段增加此字段了
             duplicate = true;
             break;
           }
@@ -1280,6 +1281,7 @@ Array<u2>* ClassFileParser::parse_fields(Symbol* class_name,
       }
 
       // Injected field
+      // 对字段进行注入 java.lang.Class需要注入7个字段
       FieldInfo* field = FieldInfo::from_field_array(fa, index);
       field->initialize(JVM_ACC_FIELD_INTERNAL,
                         injected[n].name_index,
@@ -3611,9 +3613,11 @@ void ClassFileParser::layout_fields(Handle class_loader,
   for (AllFieldStream fs(_fields, _cp); !fs.done(); fs.next()) {
 
     // skip already laid out fields
+    // 跳过已经计算布局的字段
     if (fs.is_offset_set()) continue;
 
     // contended instance fields are handled below
+    // 加了@Contended注解的非static字段直接跳过
     if (fs.is_contended() && !fs.access_flags().is_static()) continue;
 
     int real_offset = 0;
@@ -3707,6 +3711,7 @@ void ClassFileParser::layout_fields(Handle class_loader,
       default:
         ShouldNotReachHere();
     }
+    // 将计算出来的具体的字段偏移量保存到每个字段中
     fs.set_offset(real_offset);
   }
 
@@ -3719,11 +3724,14 @@ void ClassFileParser::layout_fields(Handle class_loader,
   //
   // Additionally, this should not break alignment for the fields, so we round the alignment up
   // for each field.
+  // @Contended字段注解的数量大于0
   if (nonstatic_contended_count > 0) {
 
     // if there is at least one contended field, we need to have pre-padding for them
+    // 需要在@Contended字段之前填充ContendedPaddingWidth字节
     next_nonstatic_padded_offset += ContendedPaddingWidth;
 
+    // 用BitMap保存所有的字段分组信息
     // collect all contended groups
     BitMap bm(_cp->size());
     for (AllFieldStream fs(_fields, _cp); !fs.done(); fs.next()) {
@@ -3734,7 +3742,7 @@ void ClassFileParser::layout_fields(Handle class_loader,
         bm.set_bit(fs.contended_group());
       }
     }
-
+    // 将同一组的@Contended字段布局在一起
     int current_group = -1;
     while ((current_group = (int)bm.get_next_one_offset(current_group + 1)) != (int)bm.size()) {
 
@@ -3747,6 +3755,7 @@ void ClassFileParser::layout_fields(Handle class_loader,
         if (!fs.is_contended() || (fs.contended_group() != current_group)) continue;
 
         // handle statics below
+        // 不对静态字段布局, 在oop实例中只对非静态字段布局
         if (fs.access_flags().is_static()) continue;
 
         int real_offset = 0;
@@ -3796,6 +3805,7 @@ void ClassFileParser::layout_fields(Handle class_loader,
             ShouldNotReachHere();
         }
 
+        // 当fs.contended_group为0的时候, 表示没有为字段分组, 所有字段之间都要填充ContendedPaddingWidth个字节, 包括最后一个字段的末尾
         if (fs.contended_group() == 0) {
           // Contended group defines the equivalence class over the fields:
           // the fields within the same contended group are not inter-padded.
@@ -3812,6 +3822,7 @@ void ClassFileParser::layout_fields(Handle class_loader,
       // this is expected to alleviate memory contention effects for
       // subclass fields and/or adjacent object.
       // If this was the default group, the padding is already in place.
+      // 如果current_group为0, 则在前面已经填充了末尾数据, 如果不为0, 则这里需要补充填充末尾数据
       if (current_group != 0) {
         next_nonstatic_padded_offset += ContendedPaddingWidth;
       }

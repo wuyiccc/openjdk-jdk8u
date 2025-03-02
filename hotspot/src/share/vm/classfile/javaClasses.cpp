@@ -73,6 +73,7 @@ InjectedField* JavaClasses::get_injected(Symbol* class_name, int* field_count) {
   *field_count = 0;
 
   vmSymbols::SID sid = vmSymbols::find_sid(class_name);
+  // 如果是用户自定义的类, 不进行字段注入, 直接返回即可
   if (sid == vmSymbols::NO_SID) {
     // Only well known classes can inject fields
     return NULL;
@@ -81,6 +82,7 @@ InjectedField* JavaClasses::get_injected(Symbol* class_name, int* field_count) {
   int count = 0;
   int start = -1;
 
+// 这里宏展开之后, 如果当前解析的类是java.lang.Class, 那么需要注入7个字段
 #define LOOKUP_INJECTED_FIELD(klass, name, signature, may_be_java) \
   if (sid == vmSymbols::VM_SYMBOL_ENUM_NAME(klass)) {              \
     count++;                                                       \
@@ -902,7 +904,8 @@ void java_lang_Class::compute_offsets() {
   compute_optional_offset(_class_loader_offset,
                  klass_oop, vmSymbols::classLoader_name(),
                  vmSymbols::classloader_signature());
-
+  // 给java_lang_Class类中的七个注入字段计算对应字段在class oop实例中的偏移量, 保存在java_lang_Class对应的字段中
+  // 后面可以通过这个偏移量直接找到class oopDesc对应位置存储的数据, 比如java_lang_Class的_klass_offset字段获取class OopDesc 对应偏移量存储的值
   CLASS_INJECTED_FIELDS(INJECTED_FIELD_COMPUTE_OFFSET);
 }
 
@@ -3642,6 +3645,7 @@ int InjectedField::compute_offset() {
   for (AllFieldStream fs(InstanceKlass::cast(klass_oop)); !fs.done(); fs.next()) {
     if (!may_be_java && !fs.access_flags().is_internal()) {
       // Only look at injected fields
+      // 只查看注入的字段
       continue;
     }
     if (fs.name() == name() && fs.signature() == signature()) {

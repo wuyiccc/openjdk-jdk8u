@@ -44,6 +44,8 @@ class InstanceMirrorKlass: public InstanceKlass {
 
  private:
   // 静态字段的起始偏移量
+  // 表示java.lang.Class对象中存储静态字段的偏移量
+  // 静态字段紧挨着存储在java.lang.Class对象本身占用的内存空间之后
   static int _offset_of_static_fields;
 
   // Constructor

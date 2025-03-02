@@ -1029,15 +1029,15 @@ void ClassFileParser::parse_field_attributes(u2 attributes_count,
 // Field allocation types. Used for computing field offsets.
 
 enum FieldAllocationType {
-  // 引用类型
+  // 引用类型 4B(指针压缩)/8B
   STATIC_OOP,           // Oops
-  // 字节类型
+  // 字节类型 1B
   STATIC_BYTE,          // Boolean, Byte, char
-  // 短整型
+  // 短整型 2B
   STATIC_SHORT,         // shorts
-  // 双字类型
+  // 双字类型 4B
   STATIC_WORD,          // ints
-  // 浮点类型
+  // 浮点类型 8B
   STATIC_DOUBLE,        // aligned long or double
   NONSTATIC_OOP,
   NONSTATIC_BYTE,
@@ -3366,9 +3366,17 @@ void ClassFileParser::layout_fields(Handle class_loader,
 
 
   // Calculate the starting byte offsets
+  // 按照oop, double, word, short, byte的顺序进行布局
+  // 其中oop在默认开启指针压缩的情况下占用4字节, 但是后面如果存在double类型的数据
+  // double是占用8字节的, 所以说如果有double要布局, 那么在布局double之前, 要对oop进行8字节的内存对齐
+  // 如果8字节对齐了, 那么肯定4字节的数据排布按照4字节对齐了, 后面自然也就不需要再次内存对齐了
+
+  // 获取静态字段的起始偏移量
   next_static_oop_offset      = InstanceMirrorKlass::offset_of_static_fields();
+  // 先布局oop
   next_static_double_offset   = next_static_oop_offset +
                                 ((fac->count[STATIC_OOP]) * heapOopSize);
+
   if ( fac->count[STATIC_DOUBLE] &&
        (Universe::field_type_should_be_aligned(T_DOUBLE) ||
         Universe::field_type_should_be_aligned(T_LONG)) ) {
@@ -3382,6 +3390,10 @@ void ClassFileParser::layout_fields(Handle class_loader,
   next_static_byte_offset     = next_static_short_offset +
                                 ((fac->count[STATIC_SHORT]) * BytesPerShort);
 
+  // 计算非静态字段偏移量: 先拿到父类非静态字段的偏移量
+  // 布局为 instanceOop对象自己占用的空间 + 继承自父类的非静态字段占用的内存空间 + 当前类定义的实例字段占用的内存空间
+  // 为什么静态字段不需要计算父类的静态字段呢? 可能是因为父类的静态字段不管被多少个类继承, 他的静态字段的值都只会存储一份,  在自己的Class的OopDesc中
+  // 并不会计算到子类的空间中
   int nonstatic_fields_start  = instanceOopDesc::base_offset_in_bytes() +
                                 nonstatic_field_size * heapOopSize;
 
@@ -3391,13 +3403,21 @@ void ClassFileParser::layout_fields(Handle class_loader,
 
   // Class is contended, pad before all the fields
   if (is_contended_class) {
+    // 如果类上加了@Contended注解, 那么需要在开始部分补充128填充头内容
     next_nonstatic_field_offset += ContendedPaddingWidth;
   }
+
+  // 如果类上有@Contended注解, 则当前OopDesc对象的内存布局如下
+  // 1. instanceOop对象自己占用的内存空间
+  // 2. 继承于父类字段占用的内存空间
+  // 3. ContendedPaddingWidth 内存填充
+  // 4. 当前类定义的实例字段占用的内存空间
 
   // Compute the non-contended fields count.
   // The packing code below relies on these counts to determine if some field
   // can be squeezed into the alignment gap. Contended fields are obviously
   // exempt from that.
+  // 计算出去有@Contended注解的字段的实例字段的数量
   unsigned int nonstatic_double_count = fac->count[NONSTATIC_DOUBLE] - fac_contended.count[NONSTATIC_DOUBLE];
   unsigned int nonstatic_word_count   = fac->count[NONSTATIC_WORD]   - fac_contended.count[NONSTATIC_WORD];
   unsigned int nonstatic_short_count  = fac->count[NONSTATIC_SHORT]  - fac_contended.count[NONSTATIC_SHORT];
@@ -3405,6 +3425,7 @@ void ClassFileParser::layout_fields(Handle class_loader,
   unsigned int nonstatic_oop_count    = fac->count[NONSTATIC_OOP]    - fac_contended.count[NONSTATIC_OOP];
 
   // Total non-static fields count, including every contended field
+  // 计算出所有的实例字段的总数, 包括有@Contended注解的字段
   unsigned int nonstatic_fields_count = fac->count[NONSTATIC_DOUBLE] + fac->count[NONSTATIC_WORD] +
                                         fac->count[NONSTATIC_SHORT] + fac->count[NONSTATIC_BYTE] +
                                         fac->count[NONSTATIC_OOP];
@@ -3466,7 +3487,7 @@ void ClassFileParser::layout_fields(Handle class_loader,
     allocation_style = 0;     // Allocate oops first
     compact_fields   = false; // Don't compact fields
   }
-
+  // 根据不同的布局风格, 来对字段类型顺序进行排布
   // Rearrange fields for a given allocation style
   if( allocation_style == 0 ) {
     // Fields order: oops, longs/doubles, ints, shorts/chars, bytes, padded fields
@@ -3477,6 +3498,7 @@ void ClassFileParser::layout_fields(Handle class_loader,
     // Fields order: longs/doubles, ints, shorts/chars, bytes, oops, padded fields
     next_nonstatic_double_offset = next_nonstatic_field_offset;
   } else if( allocation_style == 2 ) {
+    // 该类型在字段布局的时候会尽量让父类oop类型的字段和子类oop类型的字段挨在一起
     // Fields allocation: oops fields in super and sub classes are together.
     if( nonstatic_field_size > 0 && _super_klass() != NULL &&
         _super_klass->nonstatic_oop_map_size() > 0 ) {
@@ -3484,6 +3506,8 @@ void ClassFileParser::layout_fields(Handle class_loader,
       OopMapBlock* first_map = _super_klass->start_of_nonstatic_oop_maps();
       OopMapBlock* last_map = first_map + map_count - 1;
       int next_offset = last_map->offset() + (last_map->count() * heapOopSize);
+      // 如果说父类的oop的位置刚好在末尾, 那我们将子类的oop放在布局开头, 刚好跟父类的oop连接在一起
+      // 这样oop放在一起有利于gc扫描
       if (next_offset == next_nonstatic_field_offset) {
         allocation_style = 0;   // allocate oops first
         next_nonstatic_oop_offset    = next_nonstatic_field_offset;
@@ -3498,7 +3522,7 @@ void ClassFileParser::layout_fields(Handle class_loader,
   } else {
     ShouldNotReachHere();
   }
-
+  // 选定了布局策略之后就要开始布局了
   int nonstatic_oop_space_count    = 0;
   int nonstatic_word_space_count   = 0;
   int nonstatic_short_space_count  = 0;
@@ -3510,21 +3534,32 @@ void ClassFileParser::layout_fields(Handle class_loader,
 
   // Try to squeeze some of the fields into the gaps due to
   // long/double alignment.
+  // 由于填充会形成字段之间的空隙，比如压缩指针之后对象头(8+4=12), 后面布局long类型要求8字节对齐
+  // 那么这里就有4字节的空隙, 为了提高利用率, 这里会插入一些占用内存比较小的字段
+  // 该特性可以通过-XX:+/-CompactFields命令来控制开启于关闭, 默认是开启的
+
+  // 向空隙中填充字段, 填充的顺序为int(word 4B), short(2B), byte(1B), oop(64位下为8B)
   if( nonstatic_double_count > 0 ) {
     int offset = next_nonstatic_double_offset;
     next_nonstatic_double_offset = align_size_up(offset, BytesPerLong);
+
+    // 只有开启了CompactFields命令的时候才会进行空隙填充
     if( compact_fields && offset != next_nonstatic_double_offset ) {
       // Allocate available fields into the gap before double field.
       int length = next_nonstatic_double_offset - offset;
       assert(length == BytesPerInt, "");
       nonstatic_word_space_offset = offset;
       if( nonstatic_word_count > 0 ) {
+        // 从正常word数量中删除1条word数量
         nonstatic_word_count      -= 1;
+        // 由于空隙最大只能为7, 所以word显然只能填充一个, 这里直接赋值1就可以了
         nonstatic_word_space_count = 1; // Only one will fit
         length -= BytesPerInt;
+        // offset偏移量新增对应的4B
         offset += BytesPerInt;
       }
       nonstatic_short_space_offset = offset;
+      // 对于shot, byte可能会填充多个, 所以这里需要while循环填充
       while( length >= BytesPerShort && nonstatic_short_count > 0 ) {
         nonstatic_short_count       -= 1;
         nonstatic_short_space_count += 1;
@@ -3539,6 +3574,9 @@ void ClassFileParser::layout_fields(Handle class_loader,
       }
       // Allocate oop field in the gap if there are no other fields for that.
       nonstatic_oop_space_offset = offset;
+      // oop的字段在压缩指针的情况下占用4B, 所以也可以用来尝试填充空隙
+      // 但是要求allocation_style不能为0, 为0的情况下oop要分配到开头位置进行连续存储
+      // 所以自然也就不能用于空隙填充了
       if( length >= heapOopSize && nonstatic_oop_count > 0 &&
           allocation_style != 0 ) { // when oop fields not first
         nonstatic_oop_count      -= 1;
@@ -3548,7 +3586,7 @@ void ClassFileParser::layout_fields(Handle class_loader,
       }
     }
   }
-
+  // 计算非静态变量的偏移量 double, word, shot, byte的布局顺序是不变的
   next_nonstatic_word_offset  = next_nonstatic_double_offset +
                                 (nonstatic_double_count * BytesPerLong);
   next_nonstatic_short_offset = next_nonstatic_word_offset +
@@ -4108,9 +4146,6 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
                        &has_default_methods, CHECK_(nullHandle));
 
     u2 java_fields_count = 0;
-    if (strcmp(name->as_C_string(), "Test") == 0) {
-      int testf = 10;
-    }
     // Fields (offsets are filled in later)
     // 解析字段信息
     FieldAllocationCount fac;
@@ -4219,6 +4254,7 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
     itable_size = access_flags.is_interface() ? 0 : klassItable::compute_itable_size(_transitive_interfaces);
 
     FieldLayoutInfo info;
+    // 对类字段进行布局
     layout_fields(class_loader, &fac, &parsed_annotations, &info, CHECK_NULL);
 
     int total_oop_map_size2 =

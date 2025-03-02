@@ -168,6 +168,7 @@ void basic_types_init() {
     BytesPerHeapOop    = BytesPerInt;
     BitsPerHeapOop     = BitsPerInt;
   } else {
+    // 64位系统中 oopSize为64bit
     heapOopSize        = oopSize;
     LogBytesPerHeapOop = LogBytesPerWord;
     LogBitsPerHeapOop  = LogBitsPerWord;

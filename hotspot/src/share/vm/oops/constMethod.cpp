@@ -141,6 +141,7 @@ int ConstMethod::size(int code_size,
 
   int extra_words = align_size_up(extra_bytes, BytesPerWord) / BytesPerWord;
   assert(extra_words == extra_bytes/BytesPerWord, "should already be aligned");
+  // 内存的大小单位为字
   return align_object_size(header_size() + extra_words);
 }
 

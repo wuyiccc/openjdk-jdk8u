@@ -131,6 +131,13 @@ class MethodParametersElement VALUE_OBJ_CLASS_SPEC {
 class KlassSizeStats;
 
 // Class to collect the sizes of ConstMethod inline tables
+// 1. 本地变量表
+// 2. 压缩的代码行号表
+// 3. 异常表
+// 4. 异常检查表
+// 5. 方法参数
+// 6. 方法签名
+// 7. 方法注解
 #define INLINE_TABLES_DO(do_element)            \
   do_element(localvariable_table_length)        \
   do_element(compressed_linenumber_size)        \
@@ -203,25 +210,33 @@ private:
   // loads and stores.  This value may updated and read without a lock by
   // multiple threads, so is volatile.
   volatile uint64_t _fingerprint;
-
+  // 保存对常量池的引用, 通过ConstantPool可以拿到对应的klass, 然后拿到methods, 最后通过_method_idnum拿到method实例
   ConstantPool*     _constants;                  // Constant pool
 
   // Raw stackmap data for the method
   Array<u1>*        _stackmap_data;
-
+  // ConstMethod实例的大小, 通过调用ConstMethod:size()函数获取
   int               _constMethod_size;
+  // 访问标识符
   u2                _flags;
   u1                _result_type;                 // BasicType of result
 
   // Size of Java bytecodes allocated immediately after Method*.
+  // 方法的字节码所占用的内存大小, 以字节为单位
   u2                _code_size;
+  // 方法名称在常量池中的索引
   u2                _name_index;                 // Method name (index in constant pool)
+  // 方法前面在常量池中的索引
   u2                _signature_index;            // Method signature (index in constant pool)
+  // 对于方法来说, 这是唯一ID， 这个ID的值通常是methods数据的下标索引
   u2                _method_idnum;               // unique identification number for the method within the class
                                                  // initially corresponds to the index into the methods array.
                                                  // but this may change with redefinition
+  // 栈的最大深度
   u2                _max_stack;                  // Maximum number of entries on the expression stack
+  // 本地变量表的最大深度
   u2                _max_locals;                 // Number of local variables used by this method
+  // 方法参数的大小, 以字为单位
   u2                _size_of_parameters;         // size of the parameter block (receiver + arguments) in words
   u2                _orig_method_idnum;          // Original unique identification number for the method
 

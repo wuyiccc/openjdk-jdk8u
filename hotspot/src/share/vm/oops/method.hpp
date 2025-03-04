@@ -103,13 +103,33 @@ class KlassSizeStats;
 class Method : public Metadata {
  friend class VMStructs;
  private:
+  // ConstMethod指针, 定义在constMethod.hpp文件中
+  // 用于表示方法的不可变部分, 如方法ID, 方法的字节码大小, 方法名在常量池中的索引等
   ConstMethod*      _constMethod;                // Method read-only data.
+  // MethodData*指针, 在methodData.hpp中定义, 用于表示一个方法在执行期间收集的相关信息, 如方法的调用次数, 在C1编译期间代码循环
+  // 和阻塞次数, profile收集的方法性能相关的数据等
+  // MethodData的结构基础是ProfileData, 记录函数运行状态下的数据
+  // MethodData分为三部分, 分别是函数类型运行状态下的相关统计函数, 参数类型运行状态下的相关统计数据, 以及extra扩展区保存的deoptimization的相关信息
   MethodData*       _method_data;
+  // MethodCounters指针, 在methodCounter.hpp中定义, 用于与大量编译, 优化相关的计数
+  // 例如:
+  // 1. 解释器的调用次数
+  // 2. 解释执行时由于异常而终止的次数
+  // 3. 方法调用次数(method里面有多少方法调用)
+  // 4. 回边个数
+  // 5. java方法运行过的分成编译的最高层级(由于HotSpotVM中存在分成编译, 所以一个方法可能会被编译器编译为不同的层级, _method_counters只会记录运行过的最高层级)
+  // 6. 热点方法计数
+  // 7. 基于调用频率的热点方法的跟踪统计
   MethodCounters*   _method_counters;
+  // 表示方法的访问控制权限
   AccessFlags       _access_flags;               // Access flags
+  // 当前method实例表示的java方法在vtable表中的索引
   int               _vtable_index;               // vtable index of this method (see VtableIndexFlag)
                                                  // note: can have vtables with >2**16 elements (because of inheritance)
+  // 当前method实例的大小, 以字为单位
   u2                _method_size;                // size of this object
+  // 固有方法id, 固有方法在hotspot vm中表示一些众所周知的方法， 针对它们可以做特别处理， 生成独特的代码例程
+  // hotspot vm发现一个方法是固有方法的时候不会对字节码进行解析执行, 而是跳到独特的代码例程上执行, 者要比解析执行更高效
   u1                _intrinsic_id;               // vmSymbols::intrinsic_id (0 == _none)
   u1                _jfr_towrite          : 1,   // Flags
                     _caller_sensitive     : 1,
@@ -126,18 +146,30 @@ class Method : public Metadata {
   int               _compiled_invocation_count;  // Number of nmethod invocations so far (for perf. debugging)
 #endif
   // Entry point for calling both from and to the interpreter.
+  // 指向字节码解释执行的入口
   address _i2i_entry;           // All-args-on-stack calling convention
   // Adapter blob (i2c/c2i) for this Method*. Set once when method is linked.
+  // 指向该java方法的签名(signature)所对应的i2c2i adapter stub 的时候, 调用 _adapter的get_i2c_entry() 或 get_c2i_entry()函数获取
   AdapterHandlerEntry* _adapter;
   // Entry point for calling from compiled code, to compiled code if it exists
   // or else the interpreter.
+  // 初始值指向c2i adapter stub, 也就是以编译模式执行的java方法在调用需要以解释模式执行的java方法的时候
+  // 由于调用约定不同, 所以需要在转换的时候进行适配, 而_from_compiled_entry指向这个适配例程的入口。
+  // 一开始Java方法没有被JIT编译，需要在解释模式下执行。 当该方法被JIT编译并安装完成之后， _from_compiled_entry会指向
+  // 编译出来的机器码入口, 具体说是指向verified_entry_point
+  // 如果需要抛弃之前编译好的机器码, 那么_from_compiled_entry会恢复为指向c2i adapter stub
   volatile address _from_compiled_entry;        // Cache of: _code ? _code->entry_point() : _adapter->c2i_entry()
   // The entry point for calling both from and to compiled code is
   // "_code->entry_point()".  Because of tiered compilation and de-opt, this
   // field can come and go.  It can transition from NULL to not-null at any
   // time (whenever a compile completes).  It can transition from not-null to
   // NULL only at safepoints (because of a de-opt).
+  // 当一个方法被JIT编译后会生成一个nmethod, code指向的是编译后的代码
   nmethod* volatile _code;                       // Points to the corresponding piece of native code
+  // _from_interpreted_entry的初始值域_i2i_entry一样, 都是指向字节码解释执行的入口, 但当Java方法被JIT编译并安装之后
+  // _from_interpreted_entry就会被设置为指向i2c adapter stub, 如果因为某些原因需要抛弃之前已经编译并安装好的机器码
+  // 则_from_interpreted_entry会恢复为指向_i2i_entry, 如果有_code, 则通过_from_interpreted_entry转向编译方法
+  // 否则通过_i2i_entry转向解释方法
   volatile address           _from_interpreted_entry; // Cache of _code ? _adapter->i2c_entry() : _i2i_entry
 
   // Constructor

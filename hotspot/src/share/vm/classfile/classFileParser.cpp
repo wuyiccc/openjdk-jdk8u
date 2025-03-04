@@ -2064,7 +2064,9 @@ methodHandle ClassFileParser::parse_method(bool is_interface,
   // Parse fixed parts
   cfs->guarantee_more(8, CHECK_(nullHandle)); // access_flags, name_index, descriptor_index, attributes_count
 
+  // 读取access_flags属性值
   int flags = cfs->get_u2_fast();
+  // 读取name_index属性值
   u2 name_index = cfs->get_u2_fast();
   int cp_size = _cp->length();
   check_property(
@@ -2073,7 +2075,7 @@ methodHandle ClassFileParser::parse_method(bool is_interface,
     name_index, CHECK_(nullHandle));
   Symbol*  name = _cp->symbol_at(name_index);
   verify_legal_method_name(name, CHECK_(nullHandle));
-
+  // 读取descriptor_index属性值
   u2 signature_index = cfs->get_u2_fast();
   guarantee_property(
     valid_symbol_at(signature_index),
@@ -2155,7 +2157,9 @@ methodHandle ClassFileParser::parse_method(bool is_interface,
   int annotation_default_length = 0;
 
   // Parse code and exceptions attribute
+  // 读取attributes count属性
   u2 method_attributes_count = cfs->get_u2_fast();
+  // 循环读取多个属性
   while (method_attributes_count--) {
     cfs->guarantee_more(6, CHECK_(nullHandle));  // method_attribute_name_index, method_attribute_length
     u2 method_attribute_name_index = cfs->get_u2_fast();
@@ -2166,6 +2170,7 @@ methodHandle ClassFileParser::parse_method(bool is_interface,
       method_attribute_name_index, CHECK_(nullHandle));
 
     Symbol* method_attribute_name = _cp->symbol_at(method_attribute_name_index);
+    // 解析code属性
     if (method_attribute_name == vmSymbols::tag_code()) {
       // Parse Code attribute
       if (_need_verify) {
@@ -2180,6 +2185,7 @@ methodHandle ClassFileParser::parse_method(bool is_interface,
       parsed_code_attribute = true;
 
       // Stack size, locals size, and code size
+      // 读取max_stack, max_locals, code_length属性
       if (_major_version == 45 && _minor_version <= 2) {
         cfs->guarantee_more(4, CHECK_(nullHandle));
         max_stack = cfs->get_u1_fast();
@@ -2199,6 +2205,7 @@ methodHandle ClassFileParser::parse_method(bool is_interface,
                            code_length, CHECK_(nullHandle));
       }
       // Code pointer
+      // 读取code[code_length]数组的首地址
       code_start = cfs->get_u1_buffer();
       assert(code_start != NULL, "null code start");
       cfs->guarantee_more(code_length, CHECK_(nullHandle));
@@ -2206,6 +2213,7 @@ methodHandle ClassFileParser::parse_method(bool is_interface,
 
       // Exception handler table
       cfs->guarantee_more(2, CHECK_(nullHandle));  // exception_table_length
+      // 读取exception_table_length属性并处理 exception_table[exception_table_length]
       exception_table_length = cfs->get_u2_fast();
       if (exception_table_length > 0) {
         exception_table_start =
@@ -2214,6 +2222,7 @@ methodHandle ClassFileParser::parse_method(bool is_interface,
 
       // Parse additional attributes in code attribute
       cfs->guarantee_more(2, CHECK_(nullHandle));  // code_attributes_count
+      // 读取attributes_count属性并处理attribute_info_attributes[attributes_count]数组
       u2 code_attributes_count = cfs->get_u2_fast();
 
       unsigned int calculated_attribute_length = 0;
@@ -2504,6 +2513,7 @@ methodHandle ClassFileParser::parse_method(bool is_interface,
   }
 
   // Copy byte codes
+  // 字节码存储在ConstMethod本身占用的内存之后
   m->set_code(code_start);
 
   // Copy line number table
@@ -2607,19 +2617,23 @@ Array<Method*>* ClassFileParser::parse_methods(bool is_interface,
 
     HandleMark hm(THREAD);
     for (int index = 0; index < length; index++) {
+      // 解析每个方法
       methodHandle method = parse_method(is_interface,
                                          promoted_flags,
                                          CHECK_NULL);
 
       if (method->is_final()) {
+        // 如果定义了final方法, 那么has_final_method变量的值为true
         *has_final_method = true;
       }
       // declares_default_methods: declares concrete instance methods, any access flags
       // used for interface initialization, and default method inheritance analysis
       if (is_interface && !(*declares_default_methods)
         && !method->is_abstract() && !method->is_static()) {
+        // 如果定义了默认的方法, 则has_default_methods变量的值为true
         *declares_default_methods = true;
       }
+      // 将方法存入methods数组中
       _methods->at_put(index, method());
     }
 
@@ -4179,6 +4193,10 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
     bool has_final_method = false;
     AccessFlags promoted_flags;
     promoted_flags.set_flags(0);
+    // 解析方法
+    if (strcmp(name->as_C_string(), "Test") == 0) {
+      int x =10;
+    }
     Array<Method*>* methods = parse_methods(access_flags.is_interface(),
                                             &promoted_flags,
                                             &has_final_method,

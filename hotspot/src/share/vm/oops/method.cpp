@@ -69,6 +69,7 @@ Method* Method::allocate(ClassLoaderData* loader_data,
                          TRAPS) {
   assert(!access_flags.is_native() || byte_code_size == 0,
          "native methods should not contain byte codes");
+  // 为ConstMethod在元数据区MetaSpace分配内存并创建ConstMethod实例
   ConstMethod* cm = ConstMethod::allocate(loader_data,
                                           byte_code_size,
                                           sizes,
@@ -76,7 +77,7 @@ Method* Method::allocate(ClassLoaderData* loader_data,
                                           CHECK_NULL);
 
   int size = Method::size(access_flags.is_native());
-
+  // 为Method在元数据区MetaSpace分配内存并创建Method实例, 此实例中保存有对ConstMethod实例的引用
   return new (loader_data, size, false, MetaspaceObj::MethodType, THREAD) Method(cm, access_flags, size);
 }
 
@@ -285,8 +286,11 @@ address Method::bcp_from(int bci) const {
 
 int Method::size(bool is_native) {
   // If native, then include pointers for native_function and signature_handler
+  // 如果是本地方法, 还需要为本地方法开辟保存native_function和signature_handler属性值的内存空间 就是两个指针大小的空间
+  // 表示本地方法的时候内存布局:  method本身占用的空间 + native_function 一个指针大小 + signature_handler 一个指针大小
   int extra_bytes = (is_native) ? 2*sizeof(address*) : 0;
   int extra_words = align_size_up(extra_bytes, BytesPerWord) / BytesPerWord;
+  // 返回的是字大小
   return align_object_size(header_size() + extra_words);
 }
 

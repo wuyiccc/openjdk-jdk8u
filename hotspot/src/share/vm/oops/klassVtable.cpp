@@ -75,10 +75,15 @@ void klassVtable::compute_vtable_size_and_num_mirandas(
 
   // start off with super's vtable length
   InstanceKlass* sk = (InstanceKlass*)super;
+  // 获取父类vtable的大小, 并将当前类的vtable的大小暂时设置为父类vtable的大小
   vtable_length = super == NULL ? 0 : sk->vtable_length();
 
   // go thru each method in the methods table to see if it needs a new entry
   int len = methods->length();
+    if (strcmp(classname->as_C_string(), "com/wuyiccc/test2/Test1") == 0) {
+        int x = 100;
+    }
+  // 循环遍历当前java类或接口的每一个方法, 调用needs_new_vtable_entry()函数进行判断, 如果判断的结果是true, 则将vtable_length的大小加1
   for (int i = 0; i < len; i++) {
     assert(methods->at(i)->is_method(), "must be a Method*");
     methodHandle mh(THREAD, methods->at(i));
@@ -90,15 +95,18 @@ void klassVtable::compute_vtable_size_and_num_mirandas(
 
   GrowableArray<Method*> new_mirandas(20);
   // compute the number of mirandas methods that must be added to the end
+  // 计算mirandas方法并保存到new_mirandas或all_mirandas中
   get_mirandas(&new_mirandas, all_mirandas, super, methods, NULL, local_interfaces);
   *num_new_mirandas = new_mirandas.length();
 
   // Interfaces do not need interface methods in their vtables
   // This includes miranda methods and during later processing, default methods
+  // 只有类才需要处理mirand方法, 接口不需要处理
   if (!class_flags.is_interface()) {
+    // mirand方法也需要添加到vtable中
     vtable_length += *num_new_mirandas * vtableEntry::size();
   }
-
+  // 处理数组类的时候, 其vtable_length应该等于Object的vtable_length, 通常为5, 因为object中有5个方法需要动态绑定
   if (Universe::is_bootstrapping() && vtable_length == 0) {
     // array classes don't have their superclass set correctly during
     // bootstrapping
@@ -610,6 +618,11 @@ bool klassVtable::needs_new_vtable_entry(methodHandle target_method,
                                          Symbol* classname,
                                          AccessFlags class_flags,
                                          TRAPS) {
+
+  if (strcmp(classname->as_C_string(), "com/wuyiccc/test2/Test1") == 0) {
+    int x = 100;
+  }
+  // 接口不需要新增vtableEntry项
   if (class_flags.is_interface()) {
     // Interfaces do not use vtables, except for java.lang.Object methods,
     // so there is no point to assigning
@@ -617,14 +630,16 @@ bool klassVtable::needs_new_vtable_entry(methodHandle target_method,
     // we can use Method::_vtable_index to hold the itable index
     return false;
   }
-
+  // final方法不需要一个新的entry, 因为final方法是静态绑定的, 如果final方法复写了父类方法, 那么只需要更新对应父类的vtableEntry即可
   if (target_method->is_final_method(class_flags) ||
       // a final method never needs a new entry; final methods can be statically
       // resolved and they have to be present in the vtable only if they override
       // a super's method, in which case they re-use its entry
+      // 静态方法不需要一个新的entry
       (target_method()->is_static()) ||
       // static methods don't need to be in vtable
       (target_method()->name() ==  vmSymbols::object_initializer_name())
+      // init方法不需要被动态绑定
       // <init> is never called dynamically-bound
       ) {
     return false;
@@ -639,6 +654,7 @@ bool klassVtable::needs_new_vtable_entry(methodHandle target_method,
   }
 
   // we need a new entry if there is no superclass
+  // target_method是一个非final, 非init的实例方法, 如果没有父类, 则一定不存在需要更新的vtableEntry, 一定需要一个新的vtableEntry
   if (super == NULL) {
     return true;
   }
@@ -647,6 +663,7 @@ bool klassVtable::needs_new_vtable_entry(methodHandle target_method,
   // specification interpretation since classic has
   // private methods not overriding
   // JDK8 adds private  methods in interfaces which require invokespecial
+  // 私有方法需要一个新的vtableEntry
   if (target_method()->is_private()) {
     return true;
   }
@@ -669,8 +686,10 @@ bool klassVtable::needs_new_vtable_entry(methodHandle target_method,
   bool found_pkg_prvt_method = false;
   while (k != NULL) {
     // lookup through the hierarchy for a method with matching name and sign.
+    // 从父类中(包括直接父类和间接父类)中查找name和signature都相等的方法
     super_method = InstanceKlass::cast(k)->lookup_method(name, signature);
     if (super_method == NULL) {
+      // 跳出循环, 后续还有miranda逻辑判断
       break; // we still have to search for a matching miranda method
     }
     // get the class holding the matching method
@@ -682,6 +701,8 @@ bool klassVtable::needs_new_vtable_entry(methodHandle target_method,
     // ignore private, c.m pub does override a.m pub
     // For classes that were not javac'd together, we also do transitive overriding around
     // methods that have less accessibility
+    // 查找到的super_method既不是静态也不是private的, 如果是被覆写的方法, 那么不需要新的vtableEntry
+    // 复用从父类继承的vtableEntry即可
     if ((!super_method->is_static()) &&
        (!super_method->is_private())) {
       if (superk->is_override(super_method, classloader, classname, THREAD)) {
@@ -718,6 +739,8 @@ bool klassVtable::needs_new_vtable_entry(methodHandle target_method,
   // Actually, to handle cases that javac would not generate, we need
   // this check for all access permissions.
   InstanceKlass *sk = InstanceKlass::cast(super);
+  // 当父类中有miranda方法的时候, 由于miranda方法会使父类有对应的miranda方法的vtableEntry, 而在子类中可能不需要这个vtableEntry,
+  // 因此调用lookup_method_in_all_interfaces()函数进一步判断
   if (sk->has_miranda_methods()) {
     if (sk->lookup_method_in_all_interfaces(name, signature, Klass::find_defaults) != NULL) {
       return false; // found a matching miranda; we do not need a new entry
@@ -863,6 +886,7 @@ void klassVtable::add_new_mirandas_to_lists(
     Array<Method*>* default_methods, Klass* super) {
 
   // iterate thru the current interface's method to see if it a miranda
+  // 扫描当前接口中的所有方法并查找miranda方法
   int num_methods = current_interface_methods->length();
   for (int i = 0; i < num_methods; i++) {
     Method* im = current_interface_methods->at(i);
@@ -871,20 +895,23 @@ void klassVtable::add_new_mirandas_to_lists(
     // check for duplicate mirandas in different interfaces we implement
     for (int j = 0; j < num_of_current_mirandas; j++) {
       Method* miranda = new_mirandas->at(j);
+      // 如果不同的接口中需要相同的miranda方法, 则is_duplicate=true
       if ((im->name() == miranda->name()) &&
           (im->signature() == miranda->signature())) {
         is_duplicate = true;
         break;
       }
     }
-
+    // 重复的miranda方法不需要重复处理
     if (!is_duplicate) { // we don't want duplicate miranda entries in the vtable
       if (is_miranda(im, class_methods, default_methods, super)) { // is it a miranda at all?
         InstanceKlass *sk = InstanceKlass::cast(super);
         // check if it is a duplicate of a super's miranda
+        // 如果父类(包括直接和间接的)已经有了相同的miranda方法, 则不需要再添加
         if (sk->lookup_method_in_all_interfaces(im->name(), im->signature(), Klass::find_defaults) == NULL) {
           new_mirandas->append(im);
         }
+        // 为了方便miranda方法的判断, 需要将所有的miranda方法保存到all_mirandas 数组中
         if (all_mirandas != NULL) {
           all_mirandas->append(im);
         }

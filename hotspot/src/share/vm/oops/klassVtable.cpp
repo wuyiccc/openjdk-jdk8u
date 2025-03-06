@@ -148,6 +148,7 @@ int klassVtable::initialize_from_super(KlassHandle super) {
     // copy super class's vtable in case the super class has changed.
     return super->vtable()->length();
   } else {
+    // super一定是InstanceKlass实例, 不可能为ArrayKlass实例
     // copy methods from superKlass
     // can't inherit from array class, so must be InstanceKlass
     assert(super->oop_is_instance(), "must be instance klass");
@@ -157,6 +158,7 @@ int klassVtable::initialize_from_super(KlassHandle super) {
 #ifdef ASSERT
     superVtable->verify(tty, true);
 #endif
+    // 将父类的vtable复制到子类的vtable前面 以完成继承
     superVtable->copy_vtable_to(table());
 #ifndef PRODUCT
     if (PrintVtables && Verbose) {
@@ -206,6 +208,9 @@ void klassVtable::initialize_vtable(bool checkconstraints, TRAPS) {
     int len = methods->length();
     int initialized = super_vtable_len;
 
+    // 1. 第一部分, 将当前类中定义的每个方法和父类比较, 如果是覆写父类方法, 只需要更改从
+    // 父类中继承的vtable对应的vtableEntry即可
+    // 否则新追加一个vtableEntry
     // Check each of this class's methods against super;
     // if override, replace in copy of super vtable, otherwise append to end
     for (int i = 0; i < len; i++) {
@@ -214,15 +219,19 @@ void klassVtable::initialize_vtable(bool checkconstraints, TRAPS) {
       assert(methods->at(i)->is_method(), "must be a Method*");
       methodHandle mh(THREAD, methods->at(i));
 
+      // 如果是方法覆写, 更新当前类中复制的父类部分中对应的vtableEntry, 否则函数返回true 表示需要新增一个vtableEntry
       bool needs_new_entry = update_inherited_vtable(ik(), mh, super_vtable_len, -1, checkconstraints, CHECK);
 
       if (needs_new_entry) {
+        // 将Method实例存储在下标索引为initialized的vtable中
         put_method_at(mh(), initialized);
+        // 在Method实例中保存自己在vtable中的下标索引
         mh()->set_vtable_index(initialized); // set primary vtable index
         initialized++;
       }
     }
 
+    // 2. 第二部分, 通过接口中定义的默认方法更新vtable
     // update vtable with default_methods
     Array<Method*>* default_methods = ik()->default_methods();
     if (default_methods != NULL) {
@@ -259,7 +268,7 @@ void klassVtable::initialize_vtable(bool checkconstraints, TRAPS) {
         }
       }
     }
-
+    // 3. 第三部分, 添加miranda方法
     // add miranda methods; it will also return the updated initialized
     // Interfaces do not need interface methods in their vtables
     // This includes miranda methods and during later processing, default methods
@@ -366,23 +375,29 @@ bool klassVtable::update_inherited_vtable(InstanceKlass* klass, methodHandle tar
     assert(def_vtable_indices != NULL, "def vtable alloc?");
     assert(default_index <= def_vtable_indices->length(), "def vtable len?");
   } else {
+    // 在对普通方法进行处理的时候, default_index的参数值为-1
     assert(klass == target_method()->method_holder(), "caller resp.");
     // Initialize the method's vtable index to "nonvirtual".
     // If we allocate a vtable entry, we will update it to a non-negative number.
+    // 初始化method类中的_vtable_index属性的值为nonvirtual_vtable_index(-2)
+    // 如果我们分配了一个新的vtableEntry, 则会更新_vtable_index为一个非负值
     target_method()->set_vtable_index(Method::nonvirtual_vtable_index);
   }
 
   // Static and <init> methods are never in
+  // static和<init>方法不需要动态分派
   if (target_method()->is_static() || target_method()->name() ==  vmSymbols::object_initializer_name()) {
     return false;
   }
-
+  // 执行这里的代码的时候, 说明方法为非静态方法或者非<init>方法
   if (target_method->is_final_method(klass->access_flags())) {
     // a final method never needs a new entry; final methods can be statically
     // resolved and they have to be present in the vtable only if they override
     // a super's method, in which case they re-use its entry
+    // final方法一定不需要新的vtableEntry, 如果是final方法覆写了父类方法, 只需要更新vtableEntry即可
     allocate_new = false;
   } else if (klass->is_interface()) {
+    // 当klass为接口的时候, allocate_new的值会更新为false, 也就是接口中的方法不需要分配vtableEntry
     allocate_new = false;  // see note below in needs_new_vtable_entry
     // An interface never allocates new vtable slots, only inherits old ones.
     // This method will either be assigned its own itable index later,
@@ -393,12 +408,14 @@ bool klassVtable::update_inherited_vtable(InstanceKlass* klass, methodHandle tar
     // valid itable index, if so, don't change it
     // overpass methods in an interface will be assigned an itable index later
     // by an inheriting class
+    // 当不为默认方法或没有指定itable index的时候, 为_vtable_index赋值
     if (!is_default || !target_method()->has_itable_index()) {
       target_method()->set_vtable_index(Method::pending_itable_index);
     }
   }
 
   // we need a new entry if there is no superclass
+  // 当前类没有父类的时候, 当前方法需要一个新的vtableEntry
   Klass* super = klass->super();
   if (super == NULL) {
     return allocate_new;
@@ -408,6 +425,7 @@ bool klassVtable::update_inherited_vtable(InstanceKlass* klass, methodHandle tar
   // specification interpretation since classic has
   // private methods not overriding
   // JDK8 adds private methods in interfaces which require invokespecial
+  // 私有方法需要一个新的vtableEntry
   if (target_method()->is_private()) {
     return allocate_new;
   }
@@ -429,6 +447,8 @@ bool klassVtable::update_inherited_vtable(InstanceKlass* klass, methodHandle tar
 
   Symbol* target_classname = target_klass->name();
   for(int i = 0; i < super_vtable_len; i++) {
+    // 在当前类的vtable中获取索引下标为i的vtableEntry, 取出封装的method
+    // 循环中每次活动的都是从父类继承的method
     Method* super_method;
     if (is_preinitialized_vtable()) {
       // If this is a shared class, the vtable is already in the final state (fully
@@ -495,12 +515,13 @@ bool klassVtable::update_inherited_vtable(InstanceKlass* klass, methodHandle tar
             }
           }
        }
-
+       // 将method实例存储在下标索引为i的vtable中
        put_method_at(target_method(), i);
        if (!is_default) {
          target_method()->set_vtable_index(i);
        } else {
          if (def_vtable_indices != NULL) {
+           // 保存在def_vtable_indices中下标为default_index的method实例与保存在vtable中下标为i的vtableEntry的对应关系
            if (is_preinitialized_vtable()) {
              // At runtime initialize_vtable is rerun as part of link_class_impl()
              // for a shared class loaded by the non-boot loader.

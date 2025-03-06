@@ -479,6 +479,7 @@ bool InstanceKlass::should_be_initialized() const {
 }
 
 klassVtable* InstanceKlass::vtable() const {
+  // start_of_vtable函数用于获取vtable的起始地址
   return new klassVtable(this, start_of_vtable(), vtable_length() / vtableEntry::size());
 }
 
@@ -750,6 +751,7 @@ bool InstanceKlass::link_class_impl(
       ClassLoaderData * loader_data = this_oop->class_loader_data();
       if (!(this_oop()->is_shared() &&
             loader_data->is_the_null_class_loader_data())) {
+        // 创建并初始化klassVtable
         ResourceMark rm(THREAD);
         this_oop->vtable()->initialize_vtable(true, CHECK_false);
         this_oop->itable()->initialize_itable(true, CHECK_false);

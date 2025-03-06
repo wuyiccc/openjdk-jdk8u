@@ -1078,6 +1078,7 @@ Klass* SystemDictionary::parse_stream(Symbol* class_name,
     }
 
     // Rewrite and patch constant pool here.
+    // 连接类
     k->link_class(CHECK_NULL);
     if (cp_patches != NULL) {
       k->constants()->patch_resolved_references(cp_patches);

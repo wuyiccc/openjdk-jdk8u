@@ -4291,6 +4291,7 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
                                                       CHECK_(nullHandle));
 
     // Size of Java itable (in words)
+    // 计算itable的大小
     itable_size = access_flags.is_interface() ? 0 : klassItable::compute_itable_size(_transitive_interfaces);
 
     FieldLayoutInfo info;
@@ -4413,6 +4414,7 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
     this_klass->initialize_supers(super_klass(), CHECK_(nullHandle));
 
     // Initialize itable offset tables
+    // itable初始化
     klassItable::setup_itable_offset_table(this_klass);
 
     // Compute transitive closure of interfaces this class implements

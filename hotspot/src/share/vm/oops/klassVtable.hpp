@@ -216,7 +216,9 @@ class itableMethodEntry;
 
 class itableOffsetEntry VALUE_OBJ_CLASS_SPEC {
  private:
+  // 方法所属的接口
   Klass* _interface;
+  // 接口下的第一个方法itableMethodEntry相对于所属klass的偏移量
   int      _offset;
  public:
   Klass* interface_klass() const { return _interface; }
@@ -274,9 +276,13 @@ class itableMethodEntry VALUE_OBJ_CLASS_SPEC {
 //
 class klassItable : public ResourceObj {
  private:
+  // itable所属的klass
   instanceKlassHandle  _klass;             // my klass
+  // itable在所属的klass中的内存偏移量
   int                  _table_offset;      // offset of start of itable data within klass (in words)
+  // itable中itableOffsetEntry的大小
   int                  _size_offset_table; // size of offset table (in itableOffset entries)
+  // itable中itableMethodEntry的大小
   int                  _size_method_table; // size of methodtable (in itableMethodEntry entries)
 
   void initialize_itable_for_interface(int method_table_offset, KlassHandle interf_h, bool checkconstraints, TRAPS);

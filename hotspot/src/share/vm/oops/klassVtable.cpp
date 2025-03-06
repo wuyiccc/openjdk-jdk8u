@@ -1128,6 +1128,9 @@ void itableMethodEntry::initialize(Method* m) {
 klassItable::klassItable(instanceKlassHandle klass) {
   _klass = klass;
 
+  // InstanceKlass结构图
+  // InstanceKlass本身占用空间大小 +  vtable (从开头到这里的长度叫做_table_offset, 然后末尾指针为_offset_entry) + itableOffsetEntry * _size_offset_table （这里末尾指针为_method_entry）
+  // + itableMethodEntry * _size_method_table (这里末尾叫做end)
   if (klass->itable_length() > 0) {
     itableOffsetEntry* offset_entry = (itableOffsetEntry*)klass->start_of_itable();
     if (offset_entry  != NULL && offset_entry->interface_klass() != NULL) { // Check that itable is initialized
@@ -1156,11 +1159,15 @@ void klassItable::initialize_itable(bool checkconstraints, TRAPS) {
   if (_klass->is_interface()) {
     // This needs to go after vtable indices are assigned but
     // before implementors need to know the number of itable indices.
+    // 如果当前处理的是接口, 那么会调用klassItable::assign_itable_indices_for_interface()函数we接口中的方法
+    // 指定itableEntry索引
     assign_itable_indices_for_interface(_klass());
   }
 
   // Cannot be setup doing bootstrapping, interfaces don't have
   // itables, and klass with only ones entry have empty itables
+  // 当hotspot vm启动的时候, 当前的类型为接口和itable的长度只有1的时候
+  // 不需要添加itable, 长度为1的时候就表示为空, 因为之前会为itable多分配一个内存位置作为遍历终止条件
   if (Universe::is_bootstrapping() ||
       _klass->is_interface() ||
       _klass->itable_length() == itableOffsetEntry::size()) return;
@@ -1199,16 +1206,18 @@ inline bool interface_method_needs_itable_index(Method* m) {
   // if (m->has_vtable_index())  return false; // NO!
   return true;
 }
-
+// 只有klass实例表示的是java接口的时候才会调用此函数
 int klassItable::assign_itable_indices_for_interface(Klass* klass) {
   // an interface does not have an itable, but its methods need to be numbered
   if (TraceItables) tty->print_cr("%3d: Initializing itable indices for interface %s", ++initialize_count,
                                   klass->name()->as_C_string());
+  // 接口不需要itable表, 不过方法需要编号
   Array<Method*>* methods = InstanceKlass::cast(klass)->methods();
   int nof_methods = methods->length();
   int ime_num = 0;
   for (int i = 0; i < nof_methods; i++) {
     Method* m = methods->at(i);
+    // 当为非静态和<init>, <clinit> 方法的时候, 以下函数将返回true
     if (interface_method_needs_itable_index(m)) {
       assert(!m->is_final_method(), "no final interface methods");
       // If m is already assigned a vtable index, do not disturb it.
@@ -1231,6 +1240,7 @@ int klassItable::assign_itable_indices_for_interface(Klass* klass) {
         }
         tty->cr();
       }
+      // 当 _vtable_index >= 0 的时候, 标识指定了vtable_index, 如果没有指定, 则指定itable
       if (!m->has_vtable_index()) {
         // A shared method could have an initialized itable_index that
         // is < 0.
@@ -1280,10 +1290,13 @@ void klassItable::initialize_itable_for_interface(int method_table_offset, Klass
   HandleMark hm;
   Handle interface_loader (THREAD, InstanceKlass::cast(interf_h())->class_loader());
 
+  // 获取interf_h()接口中需要添加到itable中的方法的数量
   int ime_count = method_count_for_interface(interf_h());
   for (int i = 0; i < nof_methods; i++) {
     Method* m = methods->at(i);
     methodHandle target;
+    // 遍历接口中的每个方法, 如果方法指定了 _itable_index, 调用
+    // LinkResolver::lookup_xxx
     if (m->has_itable_index()) {
       // This search must match the runtime resolution, i.e. selection search for invokeinterface
       // to correctly enforce loader constraints for interface method inheritance
@@ -1335,6 +1348,7 @@ void klassItable::initialize_itable_for_interface(int method_table_offset, Klass
       // ime may have moved during GC so recalculate address
       int ime_num = m->itable_index();
       assert(ime_num < ime_count, "oob");
+      // 初始化itableMethodEntry类中定义的唯一属性_method
       itableOffsetEntry::method_entry(_klass(), method_table_offset)[ime_num].initialize(target());
       if (TraceItables && Verbose) {
         ResourceMark rm(THREAD);
@@ -1450,9 +1464,11 @@ void visit_all_interfaces(Array<Klass*>* transitive_intf, InterfaceVisiterClosur
     // Find no. of itable methods
     int method_count = 0;
     // method_count = klassItable::method_count_for_interface(intf);
+    // 将klass类型的intf转换为InstanceKlass类型后调用methods方法
     Array<Method*>* methods = InstanceKlass::cast(intf)->methods();
     if (methods->length() > 0) {
       for (int i = methods->length(); --i >= 0; ) {
+        // 当为非静态和<init>, <clinit>方法的时候, 以下函数将返回true
         if (interface_method_needs_itable_index(methods->at(i))) {
           method_count++;
         }
@@ -1462,6 +1478,7 @@ void visit_all_interfaces(Array<Klass*>* transitive_intf, InterfaceVisiterClosur
     // Visit all interfaces which either have any methods or can participate in receiver type check.
     // We do not bother to count methods in transitive interfaces, although that would allow us to skip
     // this step in the rare case of a zero-method interface extending another zero-method interface.
+    // method_count表示接口中定义的方法需要添加到itable的数量
     if (method_count > 0 || InstanceKlass::cast(intf)->transitive_interfaces()->length() > 0) {
       blk->doit(intf, method_count);
     }
@@ -1497,8 +1514,10 @@ class SetupItableClosure : public InterfaceVisiterClosure  {
 
   void doit(Klass* intf, int method_count) {
     int offset = ((address)_method_entry) - _klass_begin;
+    // 初始化itableOffsetEntry中的相关属性
     _offset_entry->initialize(intf, offset);
     _offset_entry++;
+    // 指向下一个接口中存储方法的itableMethodEntry
     _method_entry += method_count;
   }
 };
@@ -1524,11 +1543,12 @@ void klassItable::setup_itable_offset_table(instanceKlassHandle klass) {
   assert(!klass->is_interface(), "Should have zero length itable");
 
   // Count no of interfaces and total number of interface methods
+  // 统计出接口和接口中需要存储在itable中的方法的数量
   CountInterfacesClosure cic;
   visit_all_interfaces(klass->transitive_interfaces(), &cic);
   int nof_methods    = cic.nof_methods();
   int nof_interfaces = cic.nof_interfaces();
-
+  // 在itableOffset表的结尾添加一个null表示终止, 因此遍历偏移表的时候如果遇到null, 就终止遍历
   // Add one extra entry so we can null-terminate the table
   nof_interfaces++;
 
@@ -1544,6 +1564,7 @@ void klassItable::setup_itable_offset_table(instanceKlassHandle klass) {
   assert((oop*)(end) == (oop*)(ime + nof_methods),                      "wrong offset calculation (2)");
 
   // Visit all interfaces and initialize itable offset table
+  // 对itableOffset表进行填充
   SetupItableClosure sic((address)klass(), ioe, ime);
   visit_all_interfaces(klass->transitive_interfaces(), &sic);
 

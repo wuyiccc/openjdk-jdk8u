@@ -754,6 +754,7 @@ bool InstanceKlass::link_class_impl(
         // 创建并初始化klassVtable
         ResourceMark rm(THREAD);
         this_oop->vtable()->initialize_vtable(true, CHECK_false);
+        // 初始化itable
         this_oop->itable()->initialize_itable(true, CHECK_false);
       }
 #ifdef ASSERT

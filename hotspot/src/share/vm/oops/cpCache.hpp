@@ -91,12 +91,12 @@ class PSPromotionManager;
 // atos: 8
 // vtos: 9
 //
-// Entry specific: field entries:
-// _indices = get (b1 section) and put (b2 section) bytecodes, original constant pool index
-// _f1      = field holder (as a java.lang.Class, not a Klass*)
-// _f2      = field offset in bytes
+// Entry specific: field entries: 以字段入口为例
+// _indices = get (b1 section) and put (b2 section) bytecodes, original constant pool index (8bit获取字节码+8bit存放字节码+16bit原常量池索引)
+// _f1      = field holder (as a java.lang.Class, not a Klass*) (字节拥有者)
+// _f2      = field offset in bytes (以字节为单位的字段偏移)
 // _flags   = field type information, original FieldInfo index in field holder
-//            (field_index section)
+//            (field_index section) (4bit栈顶缓存 + 01000fv0(1表示字段入口+f字段由final修饰+v字段由volatile关键字修饰) + 0000 + 16bit字段索引)
 //
 // Entry specific: method entries:
 // _indices = invoke code for f1 (b1 section), invoke code for f2 (b2 section),
@@ -397,12 +397,13 @@ class ConstantPoolCacheEntry VALUE_OBJ_CLASS_SPEC {
 // holds interpreter runtime information for all field access and invoke bytecodes. The cache
 // is created and initialized before a class is actively used (i.e., initialized), the indivi-
 // dual cache entries are filled at resolution (i.e., "link") time (see also: rewriter.*).
-
+// ConstantPoolCache本身占用的内存空间(2个字) + ConstantPoolCacheEntry(4个字) * length
 class ConstantPoolCache: public MetaspaceObj {
   friend class VMStructs;
   friend class MetadataFactory;
  private:
   int             _length;
+  // 表示ConstantPoolCache保存的是哪个常量池的信息
   ConstantPool*   _constant_pool;          // the corresponding constant pool
 
   // Sizing
@@ -437,14 +438,19 @@ class ConstantPoolCache: public MetaspaceObj {
  private:
   void set_length(int length)                    { _length = length; }
 
+  // 2个字==16字节
   static int header_size()                       { return sizeof(ConstantPoolCache) / HeapWordSize; }
+                                                 // ConstantPoolCache加上length个ConstantPoolCacheEntry的大小
+                                                 // in_words的值为4, 表示每个ConstantPoolCacheEntry需要占用4字节
   static int size(int length)                    { return align_object_size(header_size() + length * in_words(ConstantPoolCacheEntry::size())); }
  public:
+  // 返回字的数量
   int size() const                               { return size(length()); }
  private:
 
   // Helpers
   ConstantPool**        constant_pool_addr()   { return &_constant_pool; }
+  // 获取第一个ConstantPoolCacheEntry的首地址
   ConstantPoolCacheEntry* base() const           { return (ConstantPoolCacheEntry*)((address)this + in_bytes(base_offset())); }
 
   friend class constantPoolCacheKlass;

@@ -35,10 +35,13 @@
 // that are referred to by the interpreter at runtime via the constant pool cache.
 // Also computes a CP map (original_index -> new_index).
 // Marks entries in CP which require additional processing.
+// 生成常量池缓存项索引
 void Rewriter::compute_index_maps() {
   const int length  = _pool->length();
+  // 初始化Rewriter类中保存映射关系的一些变量
   init_maps(length);
   bool saw_mh_symbol = false;
+  // 通过循环查找常量池中特定的项, 为这些项建立常量池缓存项索引
   for (int i = 0; i < length; i++) {
     int tag = _pool->tag_at(i).value();
     switch (tag) {
@@ -90,6 +93,7 @@ void Rewriter::make_constant_pool_cache(TRAPS) {
                                   _invokedynamic_references_map, CHECK);
 
   // initialize object cache in constant pool
+  // 为ConstantPool类的以下属性设置值: _resolved_references, _reference_map
   _pool->initialize_resolved_references(loader_data, _resolved_references_map,
                                         _resolved_reference_limit,
                                         CHECK);
@@ -143,6 +147,7 @@ void Rewriter::rewrite_member_reference(address bcp, int offset, bool reverse) {
   address p = bcp + offset;
   if (!reverse) {
     int  cp_index    = Bytes::get_Java_u2(p);
+    // 通过原来的对常量池的索引转为对常量池缓存的索引
     int  cache_index = cp_entry_to_cp_cache(cp_index);
     Bytes::put_native_u2(p, cache_index);
     if (!_method_handle_invokers.is_empty())
@@ -164,15 +169,20 @@ void Rewriter::rewrite_member_reference(address bcp, int offset, bool reverse) {
 // is created for each one.  This was added with lambda.
 void Rewriter::rewrite_invokespecial(address bcp, int offset, bool reverse, bool* invokespecial_error) {
   address p = bcp + offset;
+  // reverse为true时, 表示如果出错需要逆写回去, 也就是将字节码中已经替换为cache_index的值替换为原来的cp_index
+  // 这里假设不会出错, 因此省略了逆写回去的相关代码
   if (!reverse) {
+    // 获取常量池中要调用的方法的索引
     int cp_index = Bytes::get_Java_u2(p);
     if (_pool->tag_at(cp_index).is_interface_method()) {
+    // 调用add_invokespecial_cp_cache_entry函数, 根据cp_index获取cache_index
     int cache_index = add_invokespecial_cp_cache_entry(cp_index);
     if (cache_index != (int)(jushort) cache_index) {
       *invokespecial_error = true;
     }
     Bytes::put_native_u2(p, cache_index);
   } else {
+      // 对于字段存取和方法调用指令所引用的原常量池的下标索引, 通常会调用rewrite_member_reference()函数进行更改
       rewrite_member_reference(bcp, offset, reverse);
     }
   } else {
@@ -296,6 +306,9 @@ void Rewriter::maybe_rewrite_ldc(address bcp, int offset, bool is_wide,
     address p = bcp + offset;
     int cp_index = is_wide ? Bytes::get_Java_u2(p) : (u1)(*p);
     constantTag tag = _pool->tag_at(cp_index).value();
+    // 如果ldc操作数索引到的常量池项为CONSTANT_String_info, CONSTANT_MethodHandle_info
+    // 或CONSTANT_MethodType_info, 则重写ldc字节码指令为HotSpot VM中的扩展指令 _fast_aldc_w 或 _fast_aldc
+    // 同时将操作数改写为对应的常量池缓存索引
     if (tag.is_method_handle() || tag.is_method_type() || tag.is_string()) {
       int ref_index = cp_entry_to_resolved_references(cp_index);
       if (is_wide) {
@@ -356,6 +369,8 @@ void Rewriter::scan_method(Method* method, bool reverse, bool* invokespecial_err
       // directly. Some more complicated bytecodes will report
       // a length of zero, meaning we need to make another method
       // call to calculate the length.
+      // 获取字节码指令的长度, 有些字节码指令的长度无法通过length_for()函数来计算,
+      // 因此会返回0, 需要进一步调用length_at()函数来获取
       bc_length = Bytecodes::length_for(c);
       if (bc_length == 0) {
         bc_length = Bytecodes::length_at(method, bcp);
@@ -363,6 +378,7 @@ void Rewriter::scan_method(Method* method, bool reverse, bool* invokespecial_err
         // length_at will put us at the bytecode after the one modified
         // by 'wide'. We don't currently examine any of the bytecodes
         // modified by wide, but in case we do in the future...
+        // 对于wide指令的处理逻辑
         if (c == Bytecodes::_wide) {
           prefix_length = 1;
           c = (Bytecodes::Code)bcp[1];
@@ -370,7 +386,7 @@ void Rewriter::scan_method(Method* method, bool reverse, bool* invokespecial_err
       }
 
       assert(bc_length != 0, "impossible bytecode length");
-
+      // 对于部分字节码指令进行重写
       switch (c) {
         case Bytecodes::_lookupswitch   : {
 #ifndef CC_INTERP
@@ -392,6 +408,7 @@ void Rewriter::scan_method(Method* method, bool reverse, bool* invokespecial_err
         }
 
         case Bytecodes::_invokespecial  : {
+          // 重写invokespecial指令
           rewrite_invokespecial(bcp, prefix_length+1, reverse, invokespecial_error);
           break;
         }
@@ -446,6 +463,7 @@ void Rewriter::scan_method(Method* method, bool reverse, bool* invokespecial_err
           break;
         case Bytecodes::_ldc:
         case Bytecodes::_fast_aldc:  // if reverse=true
+          // 重写ldc指令和指令的操作数, 也就是常量池的索引
           maybe_rewrite_ldc(bcp, prefix_length+1, false, reverse);
           break;
         case Bytecodes::_ldc_w:
@@ -492,6 +510,7 @@ void Rewriter::rewrite_bytecodes(TRAPS) {
   assert(_pool->cache() == NULL, "constant pool cache must not be set yet");
 
   // determine index maps for Method* rewriting
+  // 1. 生成常量池缓存项索引
   compute_index_maps();
 
   if (RegisterFinalizersAtInit && _klass->name() == vmSymbols::java_lang_Object()) {
@@ -512,6 +531,7 @@ void Rewriter::rewrite_bytecodes(TRAPS) {
   }
 
   // rewrite methods, in two passes
+  // 2. 重写部分字节码指令
   int len = _methods->length();
   bool invokespecial_error = false;
 
@@ -548,6 +568,7 @@ Rewriter::Rewriter(instanceKlassHandle klass, constantPoolHandle cpool, Array<Me
 {
 
   // Rewrite bytecodes - exception here exits.
+  // 重写字节码
   rewrite_bytecodes(CHECK);
 
   // Stress restoring bytecodes
@@ -557,6 +578,7 @@ Rewriter::Rewriter(instanceKlassHandle klass, constantPoolHandle cpool, Array<Me
   }
 
   // allocate constant pool cache, now that we've seen all the bytecodes
+  // 创建常量池缓存
   make_constant_pool_cache(THREAD);
 
   // Restore bytecodes to their unrewritten state if there are exceptions

@@ -571,6 +571,7 @@ void ConstantPoolCache::initialize(const intArray& inverse_index_map,
   for (int i = 0; i < inverse_index_map.length(); i++) {
     ConstantPoolCacheEntry* e = entry_at(i);
     int original_index = inverse_index_map[i];
+    // 在ConstantPoolCacheEntry::_indicates属性的低16位存储原常量池索引
     e->initialize_entry(original_index);
     assert(entry_at(i) == e, "sanity");
   }

@@ -802,6 +802,7 @@ void InstanceKlass::rewrite_class(TRAPS) {
     return;
   }
   Rewriter::rewrite(this_oop, CHECK);
+  // 设置rewrittern标识, 防止被重复重写
   this_oop->set_rewritten();
 }
 

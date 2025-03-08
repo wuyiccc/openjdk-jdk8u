@@ -3199,6 +3199,7 @@ jint Arguments::parse_each_vm_init_arg(const JavaVMInitArgs* args,
       FLAG_SET_CMDLINE(bool, RequireSharedSpaces, false);
     // -Xverify
     } else if (match_option(option, "-Xverify", &tail)) {
+      // 这里校验字节码验证配置
       if (strcmp(tail, ":all") == 0 || strcmp(tail, "") == 0) {
         FLAG_SET_CMDLINE(bool, BytecodeVerificationLocal, true);
         FLAG_SET_CMDLINE(bool, BytecodeVerificationRemote, true);

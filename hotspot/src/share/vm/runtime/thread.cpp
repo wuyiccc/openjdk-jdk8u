@@ -990,6 +990,7 @@ bool Thread::set_as_starting_thread() {
   return os::create_main_thread((JavaThread*)this);
 }
 static void initialize_class(Symbol* class_name, TRAPS) {
+  // 初始化之前先检查
   Klass* klass = SystemDictionary::resolve_or_fail(class_name, true, CHECK);
   InstanceKlass::cast(klass)->initialize(CHECK);
 }

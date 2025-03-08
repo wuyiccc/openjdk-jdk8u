@@ -1765,6 +1765,7 @@ void SystemDictionary::add_to_hierarchy(instanceKlassHandle k, TRAPS) {
   // Link into hierachy. Make sure the vtables are initialized before linking into
   k->append_to_sibling_list();                    // add to superklass/sibling list
   k->process_interfaces(THREAD);                  // handle all "implements" declarations
+  // 这里修改Klass的状态为已加载
   k->set_init_state(InstanceKlass::loaded);
   // Now flush all code that depended on old class hierarchy.
   // Note: must be done *after* linking k into the hierarchy (was bug 12/9/97)

@@ -3927,6 +3927,7 @@ static bool relax_format_check_for(ClassLoaderData* loader_data) {
   return !need_verify;
 }
 
+// 这里在加载文件的过程中提前承担了一部分文件格式的验证和元数据的验证, 比如版本号, 父类不能为接口之类的
 instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
                                                     ClassLoaderData* loader_data,
                                                     Handle protection_domain,
@@ -4021,6 +4022,7 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
   // Save the class file name for easier error message printing.
   _class_name = (name != NULL) ? name : vmSymbols::unknown_class_name();
 
+  //
   cfs->guarantee_more(8, CHECK_(nullHandle));  // magic, major, minor
   // Magic value
   u4 magic = cfs->get_u4_fast();
@@ -4248,6 +4250,7 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
         has_default_methods = true;
       }
 
+      // 保证父类不为接口
       if (super_klass->is_interface()) {
         ResourceMark rm(THREAD);
         Exceptions::fthrow(
@@ -4260,6 +4263,7 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
         return nullHandle;
       }
       // Make sure super class is not final
+      // 保证父类不为final类
       if (super_klass->is_final()) {
         THROW_MSG_(vmSymbols::java_lang_VerifyError(), "Cannot inherit from final class", nullHandle);
       }

@@ -182,11 +182,18 @@ class InstanceKlass: public Klass {
   // See "The Java Virtual Machine Specification" section 2.16.2-5 for a detailed description
   // of the class loading & initialization procedure, and the use of the states.
   enum ClassState {
+    // 已经为InstanceKlass实例分配了内存, 在InstanceKlass的构造函数中通常会将_init_state初始化为这个状态
     allocated,                          // allocated (but not yet linked)
+    // 类已经加载了, 表示类已经装载并且已经插入继承体系中, 在SystemDictionary::add_to_hierarchy()函数中
+    // 会更新InstanceKlass的_init_state属性为此状态
     loaded,                             // loaded and inserted in class hierarchy (but not linked yet)
+    // 类已经连接/校验了, 但是还没有初始化, 只有在link_class_impl方法中更新为这个状态
     linked,                             // successfully linked/verified (but not initialized yet)
+    // 正在进行类的初始化
     being_initialized,                  // currently running class initializer
+    // 完成类的初始化
     fully_initialized,                  // initialized (successfull final state)
+    // 在初始化的过程中出错
     initialization_error                // error happened during initialization
   };
 

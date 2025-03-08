@@ -97,6 +97,7 @@ static void* verify_byte_codes_fn() {
 // Methods in Verifier
 
 bool Verifier::should_verify_for(oop class_loader, bool should_verify_class) {
+  // 判断是否应该校验class文件
   return (class_loader == NULL || !should_verify_class) ?
     BytecodeVerificationLocal : BytecodeVerificationRemote;
 }
@@ -111,6 +112,10 @@ bool Verifier::relax_access_for(oop loader) {
   return !need_verify;
 }
 
+// 字节码验证, 主要是为了防止class文件来自正确实现的编译器， 或者是有正确的格式, 防止被恶意篡改, 参考Java虚拟机规范8中4.10小节
+// 字节码验证提供了两种方式 最低版本为类型推导, 高版本是类型检查(通过StackMapTable优化校验性能)
+// 其中小于50版本的采用类型推导, 50版本优先类型检查,失败之后回退为类型推导, 51+之后只能用类型检查, 因为虽然回退的兼容性高, 但是因为回退的性能损耗也很高
+// 可以通过-Xverify:none参数关闭类验证(默认只校验远程的class文件, 参考Arguments::parse_each_vm_init_arg对于-Xverify参数的解析配置)
 bool Verifier::verify(instanceKlassHandle klass, Verifier::Mode mode, bool should_verify_class, TRAPS) {
   HandleMark hm;
   ResourceMark rm(THREAD);
@@ -121,18 +126,25 @@ bool Verifier::verify(instanceKlassHandle klass, Verifier::Mode mode, bool shoul
   char* exception_message = message_buffer;
 
   const char* klassName = klass->external_name();
+
+  // can_failover表示失败回退, 对于小于NOFAILOVER_MAJOR_VERSION主版本号(值为51)的class文件, 可以使用StackMapTable属性
+  // 进行验证, 这是类型检查, 之前的是类型推导验证。
+  // 如果can_failover的值为true, 则表示类型检查失败的时候可回退使用类型
   bool can_failover = FailOverToOldVerifier &&
       klass->major_version() < NOFAILOVER_MAJOR_VERSION;
 
   // If the class should be verified, first see if we can use the split
   // verifier.  If not, or if verification fails and FailOverToOldVerifier
   // is set, then call the inference verifier.
+  // 这里面会判断-Xverify参数
   if (is_eligible_for_verification(klass, should_verify_class)) {
     if (TraceClassInitialization) {
       tty->print_cr("Start class verification for: %s", klassName);
     }
     if (klass->major_version() >= STACKMAP_ATTRIBUTE_MAJOR_VERSION) {
+      // 使用类型检查,如果失败, 则使用类型推导验证
       ClassVerifier split_verifier(klass, THREAD);
+      // 1. 类型检查, 使用StackMapTable
       split_verifier.verify_class(THREAD);
       exception_name = split_verifier.result();
       if (can_failover && !HAS_PENDING_EXCEPTION &&

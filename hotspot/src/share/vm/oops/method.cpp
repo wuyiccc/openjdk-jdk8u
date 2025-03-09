@@ -896,16 +896,19 @@ void Method::unlink_method() {
 void Method::link_method(methodHandle h_method, TRAPS) {
   // If the code cache is full, we may reenter this function for the
   // leftover methods that weren't linked.
+  // 当_i2i_entry属性的值不为空的时候, 表示方法已经连接过了, 因为此方法可能会重复调用
   if (_i2i_entry != NULL) return;
 
   assert(_adapter == NULL, "init'd to NULL" );
   assert( _code == NULL, "nothing compiled yet" );
 
   // Setup interpreter entrypoint
+  // 为解释执行设置入口, 在初始化的时候, 将Method中的_i2i_entry和_from_interpreted_entry属性设置为解释执行的入口
   assert(this == h_method(), "wrong h_method()" );
   address entry = Interpreter::entry_for_method(h_method);
   assert(entry != NULL, "interpreter entry must be non-null");
   // Sets both _i2i_entry and _from_interpreted_entry
+  // 通过method中的_i2i_entry 和 _from_interpreted_entry来保存解释执行的入口地址
   set_interpreter_entry(entry);
 
   // Don't overwrite already registered native entries.
@@ -923,6 +926,7 @@ void Method::link_method(methodHandle h_method, TRAPS) {
   // called from the vtable.  We need adapters on such methods that get loaded
   // later.  Ditto for mega-morphic itable calls.  If this proves to be a
   // problem we'll make these lazily later.
+  // 为编译执行设置入口
   (void) make_adapters(h_method, CHECK);
 
   // ONLY USE the h_method now as make_adapter may have blocked
@@ -937,8 +941,11 @@ address Method::make_adapters(methodHandle mh, TRAPS) {
   if (adapter == NULL ) {
     THROW_MSG_NULL(vmSymbols::java_lang_VirtualMachineError(), "out of space in CodeCache for adapters");
   }
-
+  // 获取适配adapter后将其保存在Method的_adapter属性中, _adapter用来适配从解释执行转换为编译执行或从编译执行转换为解释执行
+  // 由于HotSpot VM解释模式的调用约定是用栈来传递参数, 而编译模式的调用约定更多的是采用寄存器来传递参数,
+  // 二者不兼容, 因而从解释执行中调用已经被编译的方法, 或者从编译执行中调用需要解释执行的方法的时候, 都需要在调用的时候进行适配
   mh->set_adapter_entry(adapter);
+  // 将Method的_from_compiled_entry属性初始化为编译模式转为解释模式的Stub例程, 这样编译模式就可以通过此例程回到解释执行的状态了
   mh->_from_compiled_entry = adapter->get_c2i_entry();
   return adapter->get_c2i_entry();
 }

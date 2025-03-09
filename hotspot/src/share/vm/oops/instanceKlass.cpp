@@ -577,7 +577,9 @@ void InstanceKlass::eager_initialize_impl(instanceKlassHandle this_oop) {
 // See "The Virtual Machine Specification" section 2.16.5 for a detailed explanation of the class initialization
 // process. The step comments refers to the procedure described in that section.
 // Note: implementation moved to static method to expose the this pointer.
+// 类初始化
 void InstanceKlass::initialize(TRAPS) {
+  // 类的状态不为fully_initialized的时候, 需要进行初始化
   if (this->should_be_initialized()) {
     HandleMark hm(THREAD);
     instanceKlassHandle this_oop(THREAD, this);
@@ -586,6 +588,7 @@ void InstanceKlass::initialize(TRAPS) {
     //       OR it may be in the state of being initialized
     //       in case of recursive initialization!
   } else {
+    // 类的状态为fully_initialized
     assert(is_initialized(), "sanity check");
   }
 }
@@ -860,6 +863,7 @@ void InstanceKlass::initialize_super_interfaces(instanceKlassHandle this_k, TRAP
 void InstanceKlass::initialize_impl(instanceKlassHandle this_oop, TRAPS) {
   // Make sure klass is linked (verified) before initialization
   // A class could already be verified, since it has been reflected upon.
+  // 这里需要确保类已经完成了连接
   this_oop->link_class(CHECK);
 
   DTRACE_CLASSINIT_PROBE(required, InstanceKlass::cast(this_oop()), -1);
@@ -869,6 +873,7 @@ void InstanceKlass::initialize_impl(instanceKlassHandle this_oop, TRAPS) {
   // refer to the JVM book page 47 for description of steps
   // Step 1
   {
+    // 步骤1: 通过ObjectLocker加锁, 防止多个线程并发初始化
     oop init_lock = this_oop->init_lock();
     ObjectLocker ol(init_lock, THREAD, init_lock != NULL);
 
@@ -878,24 +883,31 @@ void InstanceKlass::initialize_impl(instanceKlassHandle this_oop, TRAPS) {
     // If we were to use wait() instead of waitInterruptibly() then
     // we might end up throwing IE from link/symbol resolution sites
     // that aren't expected to throw.  This would wreak havoc.  See 6320309.
+    // 步骤2: 如果当前instanceKlassHandle正在初始化且初始化线程不是当前线程, 则执行ol.waitUninterruptibly()函数
+    // 等待其他线程初始化完成后通知
     while(this_oop->is_being_initialized() && !this_oop->is_reentrant_initialization(self)) {
         wait = true;
       ol.waitUninterruptibly(CHECK);
     }
 
     // Step 3
+    // 步骤3, 当前类正在被当前线程初始化, 例如, 如果x类有静态变量指向new Y类实例, Y类又有静态变量指向 new X实例
+    // 这样外部在调用X时需要初始化X类, 初始化X的过程中又要初始化Y, 然后Y又触发了X类的初始化,
+    // 类正在进行初始化, 执行初始化的线程就是当前线程
     if (this_oop->is_being_initialized() && this_oop->is_reentrant_initialization(self)) {
       DTRACE_CLASSINIT_PROBE_WAIT(recursive, InstanceKlass::cast(this_oop()), -1,wait);
       return;
     }
 
     // Step 4
+    // 类已经初始化完成
     if (this_oop->is_initialized()) {
       DTRACE_CLASSINIT_PROBE_WAIT(concurrent, InstanceKlass::cast(this_oop()), -1,wait);
       return;
     }
 
     // Step 5
+    // 类的初始化出错, (initialization_error状态) 抛出NoClassDefFoundError异常
     if (this_oop->is_in_error_state()) {
       DTRACE_CLASSINIT_PROBE_WAIT(erroneous, InstanceKlass::cast(this_oop()), -1,wait);
       ResourceMark rm(THREAD);
@@ -905,6 +917,7 @@ void InstanceKlass::initialize_impl(instanceKlassHandle this_oop, TRAPS) {
       char* message = NEW_RESOURCE_ARRAY(char, msglen);
       if (NULL == message) {
         // Out of memory: can't create detailed error message
+        // 内存溢出, 无法创建详细的异常信息
         THROW_MSG(vmSymbols::java_lang_NoClassDefFoundError(), className);
       } else {
         jio_snprintf(message, msglen, "%s%s", desc, className);
@@ -913,6 +926,7 @@ void InstanceKlass::initialize_impl(instanceKlassHandle this_oop, TRAPS) {
     }
 
     // Step 6
+    // 设置类的初始化状态为being_initialized, 设置初始化线程为当前线程
     this_oop->set_init_state(being_initialized);
     this_oop->set_init_thread(self);
   }
@@ -920,6 +934,7 @@ void InstanceKlass::initialize_impl(instanceKlassHandle this_oop, TRAPS) {
   // Step 7
   // Next, if C is a class rather than an interface, initialize its super class and super
   // interfaces.
+  // 如果当前初始化的不是接口和父类不为空, 并且父类未初始化, 则初始化其父类
   if (!this_oop->is_interface()) {
     Klass* super_klass = this_oop->super();
     if (super_klass != NULL && super_klass->should_be_initialized()) {
@@ -930,6 +945,7 @@ void InstanceKlass::initialize_impl(instanceKlassHandle this_oop, TRAPS) {
     // Only need to recurse if has_default_methods which includes declaring and
     // inheriting default methods
     if (!HAS_PENDING_EXCEPTION && this_oop->has_default_methods()) {
+    // 初始化有默认方法的接口
       this_oop->initialize_super_interfaces(this_oop, THREAD);
     }
 
@@ -961,11 +977,13 @@ void InstanceKlass::initialize_impl(instanceKlassHandle this_oop, TRAPS) {
                              jt->get_thread_stat()->perf_recursion_counts_addr(),
                              jt->get_thread_stat()->perf_timers_addr(),
                              PerfClassTraceTime::CLASS_CLINIT);
+    // 步骤8, 执行类或接口的初始化方法<clinit>
     this_oop->call_class_initializer(THREAD);
   }
 
   // Step 9
   if (!HAS_PENDING_EXCEPTION) {
+    // 如果初始化过程中没有异常, 说明已经完成了初始化, 设置类的状态为full_initialized, 并通知其他线程初始化已经完成
     this_oop->set_initialization_state_and_notify(fully_initialized, CHECK);
     { ResourceMark rm(THREAD);
       debug_only(this_oop->vtable()->verify(tty, true);)
@@ -980,6 +998,8 @@ void InstanceKlass::initialize_impl(instanceKlassHandle this_oop, TRAPS) {
     JvmtiExport::clear_detected_exception((JavaThread*)THREAD);
     {
       EXCEPTION_MARK;
+      // 如果初始化过程中发生异常, 则通过set_initialization_state_and_notify()方法设置类的状态为initialization_error并通知其他线程,
+      // 然后抛出错误或者异常
       this_oop->set_initialization_state_and_notify(initialization_error, THREAD);
       CLEAR_PENDING_EXCEPTION;   // ignore any exception thrown, class initialization error is thrown below
       // JVMTI has already reported the pending exception
@@ -1273,6 +1293,7 @@ void InstanceKlass::call_class_initializer_impl(instanceKlassHandle this_oop, TR
   if (h_method() != NULL) {
     JavaCallArguments args; // No arguments
     JavaValue result(T_VOID);
+    // 通过JavaCalls::call()函数完成了java方法的调用
     JavaCalls::call(&result, h_method, &args, CHECK); // Static call (no args)
   }
 }

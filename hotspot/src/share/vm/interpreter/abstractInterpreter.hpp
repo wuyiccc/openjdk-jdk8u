@@ -75,6 +75,8 @@ class AbstractInterpreter: AllStatic {
   friend class Interpreter;
   friend class CppInterpreterGenerator;
  public:
+  // 枚举类型, 定义了表示不同方法类型的常量, 如普通的非同步方法, 普通的同步方法
+  // 本地非同步方法, 本地同步方法
   enum MethodKind {
     zerolocals,                                                 // method needs locals initialization
     zerolocals_synchronized,                                    // method needs locals initialization & is synchronized
@@ -143,6 +145,7 @@ class AbstractInterpreter: AllStatic {
 
   // Method activation
   static MethodKind method_kind(methodHandle m);
+  // 获取对应的方法类型解释执行的入口地址
   static address    entry_for_kind(MethodKind k)                { assert(0 <= k && k < number_of_method_entries, "illegal kind"); return _entry_table[k]; }
   static address    entry_for_method(methodHandle m)            { return entry_for_kind(method_kind(m)); }
 

@@ -34,7 +34,9 @@ class VirtualSpaceNode;
 // be put on the FreeList and in the BinaryTreeDictionary.
 template <class T>
 class Metabase VALUE_OBJ_CLASS_SPEC {
+  // 可以计算出metachunk的块大小
   size_t _word_size;
+  // Metachunk块的前后指针
   T*     _next;
   T*     _prev;
 
@@ -93,13 +95,22 @@ class Metabase VALUE_OBJ_CLASS_SPEC {
 //            |              |             |         |
 //            |              |             |         |
 //            +--------------+ <- bottom --+       --+
+// 分配给类加载器的元空间的最小单位, 被指定类加载器独享
+// metachunk有三种规格(64位操作系统重) 1k, 4k, 64k
+// 一个标准的类加载器第一次申请空间的时候会得到一个4k的chunk块, 直到他达到了一个随意设置的阈值, 此时分配器失去了耐心, 会一次性分配一个64KB的内存块
+// bootstrap classloader由于公认会加载大量的类, 所以分配器直接从4MB开始分配(分配一个巨大的chunk, 通过InitialBootClassLoaderMetaspaceSize进行调优)
+// 反射类加载和匿名类类加载器只会加载一个类, 所以一开始只会给他们一个非常小的chunk块(1kb), 因为给太多是一种浪费
 
+// 类加载器申请空间的时候, 元空间每次都会类加载器分配一个chunk块, 这种优化是建立在他们马上就需要新的空间的基础上, 这种假设也有可能错误
+// 比如刚好申请一个新的chunk之后, 这个类加载器就不会加载新的类了
 class Metachunk : public Metabase<Metachunk> {
   friend class TestMetachunk;
   // The VirtualSpaceNode containing this chunk.
+  // 此Metachunk归属的VirtualSpaceNode节点
   VirtualSpaceNode* _container;
 
   // Current allocation top.
+  // 当前分配的位置
   MetaWord* _top;
 
   DEBUG_ONLY(bool _is_tagged_free;)
@@ -136,6 +147,7 @@ class Metachunk : public Metabase<Metachunk> {
   // free (available for future allocations)
   size_t word_size() const { return size(); }
   size_t used_word_size() const;
+  // 空闲内存大小
   size_t free_word_size() const;
 
 #ifdef ASSERT

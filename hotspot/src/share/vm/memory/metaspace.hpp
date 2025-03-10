@@ -134,6 +134,7 @@ class Metaspace : public CHeapObj<mtClass> {
   static size_t _commit_alignment;
   static size_t _reserve_alignment;
 
+  // 实例字段, 不同的MetaSpace会有不同的值, 也就是说不同的类加载器会有各自的SpaceManager来管理自己的MetaChunk块
   SpaceManager* _vsm;
   SpaceManager* vsm() const { return _vsm; }
 
@@ -149,11 +150,17 @@ class Metaspace : public CHeapObj<mtClass> {
   //   allocate(ClassLoaderData*, size_t, bool, MetadataType, TRAPS)
   MetaWord* allocate(size_t word_size, MetadataType mdtype);
 
+  // 元空间其实细分为元空间和类指针压缩空间, 只有开启了指针压缩之后才会有类指针压缩空间(开启了UseCompressedClassPointers选项才生效)
+  // 类指针压缩空间只包含类的元数据, 如InstanceKlass, ArrayKlass, 为了提高性能, Java中的虚方法表vtable也存放在这里,
+  // 元空间包含的是类比较大的元数据, 如方法, 字节码和常量池.
+
   // Virtual Space lists for both classes and other metadata
+  // 静态字段指定VirtualSpaceList
   static VirtualSpaceList* _space_list;
   static VirtualSpaceList* _class_space_list;
 
   static ChunkManager* _chunk_manager_metadata;
+  // 静态字段管理空闲的内存块
   static ChunkManager* _chunk_manager_class;
 
   static const MetaspaceTracer* _tracer;

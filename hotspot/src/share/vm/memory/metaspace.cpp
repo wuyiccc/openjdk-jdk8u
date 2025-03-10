@@ -95,6 +95,7 @@ bool MetaspaceGC::_should_concurrent_collect = false;
 typedef class FreeList<Metachunk> ChunkList;
 
 // Manages the global free lists of chunks.
+// 管理所有空闲的块
 class ChunkManager : public CHeapObj<mtInternal> {
   friend class TestVirtualSpaceNodeTest;
 
@@ -603,6 +604,7 @@ class Metadebug : AllStatic {
 int Metadebug::_allocation_fail_alot_count = 0;
 
 //  SpaceManager - used by Metaspace to handle allocations
+// 管理类加载器正在使用的metachunk块
 class SpaceManager : public CHeapObj<mtClass> {
   friend class Metaspace;
   friend class Metadebug;
@@ -613,11 +615,13 @@ class SpaceManager : public CHeapObj<mtClass> {
   Mutex* const _lock;
 
   // Type of metadata allocated.
+  // 分配的元数据区域的类型
   Metaspace::MetadataType _mdtype;
 
   // List of chunks in use by this SpaceManager.  Allocations
   // are done from the current chunk.  The list is used for deallocating
   // chunks when the SpaceManager is freed.
+  //
   Metachunk* _chunks_in_use[NumberOfInUseLists];
   Metachunk* _current_chunk;
 

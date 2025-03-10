@@ -640,6 +640,7 @@ class SpaceManager : public CHeapObj<mtClass> {
   // are assumed to be in chunks in use by the SpaceManager
   // and all chunks in use by a SpaceManager are freed when
   // the class loader using the SpaceManager is collected.
+  // 存储还留有未分配完成数据的block
   BlockFreelist _block_freelists;
 
   // protects virtualspace and chunk expansions
@@ -2159,6 +2160,7 @@ MetaWord* SpaceManager::grow_and_allocate(size_t word_size) {
   }
 
   // Get another chunk out of the virtual space
+  // 计算块的大小并从空闲块中获取, 或者从virtual space node 中新分配一个空闲块
   size_t chunk_word_size = calc_chunk_size(word_size);
   Metachunk* next = get_new_chunk(chunk_word_size);
 
@@ -2168,7 +2170,9 @@ MetaWord* SpaceManager::grow_and_allocate(size_t word_size) {
   // and do an allocation from it.
   if (next != NULL) {
     // Add to this manager's list of chunks in use.
+    // 将分配到的内存存储到_chunks_in_use中进行管理
     add_chunk(next, false);
+    // 从新块中分配内存
     mem = next->allocate(word_size);
   }
 
@@ -2494,6 +2498,7 @@ MetaWord* SpaceManager::allocate(size_t word_size) {
   // from the dictionary until it starts to get fat.  Is this
   // a reasonable policy?  Maybe an skinny dictionary is fast enough
   // for allocations.  Do some profiling.  JJJ
+  // 如果空闲块的大小大于4k, 那么从空闲块中分配
   if (fl->total_size() > allocation_from_dictionary_limit) {
     p = fl->get_block(raw_word_size);
   }
@@ -2525,10 +2530,11 @@ MetaWord* SpaceManager::allocate_work(size_t word_size) {
     return current_chunk()->allocate(word_size); // caller handles null result
   }
 
+  // 从当前chunk中分配内存
   if (current_chunk() != NULL) {
     result = current_chunk()->allocate(word_size);
   }
-
+  // 如果分配失败, 则从新的块中分配(从空闲块中找到合适的新块, 或者从virtual-spaceNode中分配新块)
   if (result == NULL) {
     result = grow_and_allocate(word_size);
   }
@@ -3627,6 +3633,7 @@ MetaWord* Metaspace::allocate(ClassLoaderData* loader_data, size_t word_size,
   MetaWord* result = loader_data->metaspace_non_null()->allocate(word_size, mdtype);
 
   if (result == NULL) {
+    // 为元数据信息分配空间失败
     tracer()->report_metaspace_allocation_failure(loader_data, word_size, type, mdtype);
 
     // Allocation failed.
@@ -3634,6 +3641,7 @@ MetaWord* Metaspace::allocate(ClassLoaderData* loader_data, size_t word_size,
       // Only start a GC if the bootstrapping has completed.
 
       // Try to clean out some memory and retry.
+      // 触发gc进行内存回收后再分配
       result = Universe::heap()->collector_policy()->satisfy_failed_metadata_allocation(
           loader_data, word_size, mdtype);
     }
@@ -3644,6 +3652,7 @@ MetaWord* Metaspace::allocate(ClassLoaderData* loader_data, size_t word_size,
   }
 
   // Zero initialize.
+  // 将分配的内存初始化为0
   Copy::fill_to_aligned_words((HeapWord*)result, word_size, 0);
 
   return result;

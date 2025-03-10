@@ -119,7 +119,9 @@ class ClassLoaderDataGraph : public AllStatic {
 };
 
 // ClassLoaderData class
-
+// 每个类加载器都会对应一个ClassLoaderData
+// 类加载器分为四类: 1. bootstrap 2. 反射类加载器 3. 匿名类加载器 4. 普通类加载器(扩展+应用+自定义)
+// 每个classLoaderData都会拥有一个metaspace实例
 class ClassLoaderData : public CHeapObj<mtClass> {
   friend class VMStructs;
  private:

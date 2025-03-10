@@ -173,6 +173,7 @@ Method* Klass::uncached_lookup_method(Symbol* name, Symbol* signature, OverpassL
 
 void* Klass::operator new(size_t size, ClassLoaderData* loader_data, size_t word_size, TRAPS) throw() {
   return Metaspace::allocate(loader_data, word_size, /*read_only*/false,
+                             // 分配的元空间类型属于class metaspace (而不是 no class metaspace)
                              MetaspaceObj::ClassType, THREAD);
 }
 

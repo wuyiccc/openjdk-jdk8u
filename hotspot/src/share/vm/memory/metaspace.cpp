@@ -2160,7 +2160,7 @@ MetaWord* SpaceManager::grow_and_allocate(size_t word_size) {
   }
 
   // Get another chunk out of the virtual space
-  // 计算块的大小并从空闲块中获取, 或者从virtual space node 中新分配一个空闲块
+  // 计算块的大小并从chunk_manager空闲块中获取, 或者从virtual space node 中新分配一个空闲块
   size_t chunk_word_size = calc_chunk_size(word_size);
   Metachunk* next = get_new_chunk(chunk_word_size);
 
@@ -2498,7 +2498,7 @@ MetaWord* SpaceManager::allocate(size_t word_size) {
   // from the dictionary until it starts to get fat.  Is this
   // a reasonable policy?  Maybe an skinny dictionary is fast enough
   // for allocations.  Do some profiling.  JJJ
-  // 如果空闲块的大小大于4k, 那么从空闲块中分配
+  // 如果空闲块的大小大于4k, 那么从blockFreeList中分配
   if (fl->total_size() > allocation_from_dictionary_limit) {
     p = fl->get_block(raw_word_size);
   }
@@ -2534,7 +2534,7 @@ MetaWord* SpaceManager::allocate_work(size_t word_size) {
   if (current_chunk() != NULL) {
     result = current_chunk()->allocate(word_size);
   }
-  // 如果分配失败, 则从新的块中分配(从空闲块中找到合适的新块, 或者从virtual-spaceNode中分配新块)
+  // 如果分配失败, 则从新的块中分配(从空闲块中找到合适的新块->或者从virtual-spaceNode中分配新块)
   if (result == NULL) {
     result = grow_and_allocate(word_size);
   }

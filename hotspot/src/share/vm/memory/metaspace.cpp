@@ -1095,6 +1095,11 @@ void ChunkManager::remove_chunk(Metachunk* chunk) {
 // Walk the list of VirtualSpaceNodes and delete
 // nodes with a 0 container_count.  Remove Metachunks in
 // the node from their respective freelists.
+// 归还VirtualSpaceNode给操作系统
+// 当一个VirtualSpaceListNode中所有的chunk块都空闲的时候, 这个node就会从list中移除
+// 对应的chunk也会从空闲列表中移除, node会被归还给操作系统
+// 如果node空闲, 说明这个node之前对应的所有类加载器都已经卸载了
+// 但类加载器卸载,不一定会让node中所有的chunk都空闲, 所有要少使用负责加载匿名类或者反射类的类加载器
 void VirtualSpaceList::purge(ChunkManager* chunk_manager) {
   assert(SafepointSynchronize::is_at_safepoint(), "must be called at safepoint for contains to work");
   assert_lock_strong(SpaceManager::expand_lock());
@@ -1110,6 +1115,7 @@ void VirtualSpaceList::purge(ChunkManager* chunk_manager) {
     // be needed soon.
     if (vsl->container_count() == 0 && vsl != current_virtual_space()) {
       // Unlink it from the list
+      // 将当前的virtualSpaceNode从列表中移除
       if (prev_vsl == vsl) {
         // This is the case of the current node being the first node.
         assert(vsl == virtual_space_list(), "Expected to be the first node");
@@ -1117,8 +1123,9 @@ void VirtualSpaceList::purge(ChunkManager* chunk_manager) {
       } else {
         prev_vsl->set_next(vsl->next());
       }
-
+      // 将当前的VirtualSpaceNode中使用的chunks从空闲列表中移除
       vsl->purge(chunk_manager);
+      // 将VirtualSpaceNode使用的内存归还给操作系统
       dec_reserved_words(vsl->reserved_words());
       dec_committed_words(vsl->committed_words());
       dec_virtual_space_count();
@@ -2312,7 +2319,7 @@ SpaceManager::~SpaceManager() {
 
   // Follow each list of chunks-in-use and add them to the
   // free lists.  Each list is NULL terminated.
-
+  // 将当前SpaceManager使用的所有SpecializedChunk, SmallChunk, MediumChunk交给ChunkManager管理
   for (ChunkIndex i = ZeroIndex; i < HumongousIndex; i = next_chunk_index(i)) {
     if (TraceMetadataChunkAllocation && Verbose) {
       gclog_or_tty->print_cr("returned %d %s chunks to freelist",
@@ -2342,6 +2349,7 @@ SpaceManager::~SpaceManager() {
     gclog_or_tty->print("Humongous chunk dictionary: ");
   }
   // Humongous chunks are never the current chunk.
+  // humongous_chunk交给chunkManager管理
   Metachunk* humongous_chunks = chunks_in_use(HumongousIndex);
 
   while (humongous_chunks != NULL) {
@@ -2999,6 +3007,7 @@ Metaspace::Metaspace(Mutex* lock, MetaspaceType type) {
 Metaspace::~Metaspace() {
   delete _vsm;
   if (using_class_space()) {
+    // 调用SpaceManager的析构函数
     delete _class_vsm;
   }
 }

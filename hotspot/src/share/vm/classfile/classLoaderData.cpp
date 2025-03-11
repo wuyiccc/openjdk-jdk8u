@@ -369,7 +369,7 @@ bool ClassLoaderData::is_alive(BoolObjectClosure* is_alive_closure) const {
   return alive;
 }
 
-
+// purge中delete触发析构函数释放资源
 ClassLoaderData::~ClassLoaderData() {
   // Release C heap structures for all the classes.
   classes_do(InstanceKlass::release_C_heap_structures);
@@ -378,6 +378,7 @@ ClassLoaderData::~ClassLoaderData() {
   if (m != NULL) {
     _metaspace = NULL;
     // release the metaspace
+    // 调用对应的析构函数
     delete m;
   }
 
@@ -750,6 +751,7 @@ bool ClassLoaderDataGraph::contains_loader_data(ClassLoaderData* loader_data) {
 
 // Move class loader data from main list to the unloaded list for unloading
 // and deallocation later.
+// 卸载类
 bool ClassLoaderDataGraph::do_unloading(BoolObjectClosure* is_alive_closure, bool clean_alive) {
   ClassLoaderData* data = _head;
   ClassLoaderData* prev = NULL;
@@ -818,6 +820,7 @@ void ClassLoaderDataGraph::purge() {
   while (next != NULL) {
     ClassLoaderData* purge_me = next;
     next = purge_me->next();
+    // 删除ClassLoaderData
     delete purge_me;
   }
   Metaspace::purge();

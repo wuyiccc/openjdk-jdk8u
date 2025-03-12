@@ -209,6 +209,7 @@ DefNewGeneration::DefNewGeneration(ReservedSpace rs,
   // These values are exported as performance counters.
   uintx alignment = GenCollectedHeap::heap()->collector_policy()->space_alignment();
   uintx size = _virtual_space.reserved_size();
+  // 计算survivor的大小
   _max_survivor_size = compute_survivor_size(size, alignment);
   _max_eden_size = size - (2*_max_survivor_size);
 
@@ -224,16 +225,19 @@ DefNewGeneration::DefNewGeneration(ReservedSpace rs,
                                       _gen_counters);
   _to_counters = new CSpaceCounters("s1", 2, _max_survivor_size, _to_space,
                                     _gen_counters);
-
   compute_space_boundaries(0, SpaceDecorator::Clear, SpaceDecorator::Mangle);
   update_counters();
+  // 指向下一个内存代, 当前年轻代的下一个内存代为老年代
   _next_gen = NULL;
+  // 控制新生代对象晋升到老年代中的最大阈值
   _tenuring_threshold = MaxTenuringThreshold;
+  // 当新对象申请的内存空间大于这个参数值的时候, 直接在老年代中分配内存
+  // 默认值为0, 代表不管多大都先在eden中分配内存
   _pretenure_size_threshold_words = PretenureSizeThreshold >> LogHeapWordSize;
 
   _gc_timer = new (ResourceObj::C_HEAP, mtGC) STWGCTimer();
 }
-
+// 计算eden和两个survivor区的边界
 void DefNewGeneration::compute_space_boundaries(uintx minimum_eden_size,
                                                 bool clear_space,
                                                 bool mangle_space) {
@@ -248,6 +252,8 @@ void DefNewGeneration::compute_space_boundaries(uintx minimum_eden_size,
     "Initialization of the survivor spaces assumes these are empty");
 
   // Compute sizes
+  // 计算eden和两个survivor空间的值, 这里获取内存调用的是committed_size的值
+  // 实际上获取的是已经分配的物理内存
   uintx size = _virtual_space.committed_size();
   uintx survivor_size = compute_survivor_size(size, alignment);
   uintx eden_size = size - (2*survivor_size);
@@ -300,6 +306,7 @@ void DefNewGeneration::compute_space_boundaries(uintx minimum_eden_size,
   }
 
   // Reset the spaces for their new regions.
+  // initialize函数初始化eden和survivor空间
   eden()->initialize(edenMR,
                      clear_space && !live_in_eden,
                      SpaceDecorator::Mangle);

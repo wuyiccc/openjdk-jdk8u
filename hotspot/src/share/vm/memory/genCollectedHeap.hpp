@@ -67,6 +67,7 @@ public:
   GenerationSpec** _gen_specs;
 
   // The generational collector policy.
+  // 分代垃圾的回收策略
   GenCollectorPolicy* _gen_policy;
 
   // Indicates that the most recent previous incremental collection failed.

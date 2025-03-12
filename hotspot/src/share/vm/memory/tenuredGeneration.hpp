@@ -34,7 +34,7 @@
 // TenuredGeneration models the heap containing old (promoted/tenured) objects.
 
 class ParGCAllocBufferWithBOT;
-
+// 可Mark-Compact(标记-压缩)的卡表代
 class TenuredGeneration: public OneContigSpaceCardGeneration {
   friend class VMStructs;
  protected:

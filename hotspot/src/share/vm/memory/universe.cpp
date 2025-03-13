@@ -835,6 +835,8 @@ jint Universe::initialize_heap() {
     } else { // default old generation
       gc_policy = new MarkSweepPolicy();
     }
+    // 由于markSweepPolicy类中并没有实现initialize_all()函数,
+    // 所以最终调用的是GenCollectorPolicy进策略初始化
     gc_policy->initialize_all();
 
     Universe::_collectedHeap = new GenCollectedHeap(gc_policy);

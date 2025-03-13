@@ -648,6 +648,8 @@ MemRegion CardTableModRefBS::dirty_card_range_after_reset(MemRegion mr,
 }
 
 uintx CardTableModRefBS::ct_max_alignment_constraint() {
+  // 卡表通过1字节标记老年代的512字节， 一个页面大小是4096字节
+  // 512 * 4096 = 2MB进行对齐
   return card_size * os::vm_page_size();
 }
 

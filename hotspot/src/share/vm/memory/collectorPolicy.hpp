@@ -68,10 +68,12 @@ class CollectorPolicy : public CHeapObj<mtGC> {
   DEBUG_ONLY(virtual void assert_flags();)
   DEBUG_ONLY(virtual void assert_size_info();)
 
+  // 保存堆的初始值, 最大值与最小值
   size_t _initial_heap_byte_size;
   size_t _max_heap_byte_size;
   size_t _min_heap_byte_size;
 
+  // 保存空间与堆对齐的数值
   size_t _space_alignment;
   size_t _heap_alignment;
 
@@ -97,6 +99,7 @@ class CollectorPolicy : public CHeapObj<mtGC> {
 
  public:
   virtual void initialize_all() {
+    // 下面方法都是虚函数, 实际调用取于真正的实现类
     initialize_alignments();
     initialize_flags();
     initialize_size_info();
@@ -222,12 +225,16 @@ class ClearedAllSoftRefs : public StackObj {
 class GenCollectorPolicy : public CollectorPolicy {
 friend class TestGenCollectorPolicy;
  protected:
+  // 保存分代中第一个代的最小值, 初始值和最大值, 任何分代堆都至少会有一个代
+  // 如果有多个代, 则当前表示的是最年轻的代
   size_t _min_gen0_size;
   size_t _initial_gen0_size;
   size_t _max_gen0_size;
 
   // _gen_alignment and _space_alignment will have the same value most of the
   // time. When using large pages they can differ.
+  // _gen_alignment 一般和 _space_alignment相同, 前面介绍的 MarkSweepPolicy::initialize_alignments() 函数也是将两个属性赋予了相同的值
+  //   _space_alignment = _gen_alignment = (uintx)Generation::GenGrain;
   size_t _gen_alignment;
 
   GenerationSpec **_generations;
@@ -278,7 +285,9 @@ friend class TestGenCollectorPolicy;
   virtual void initialize_generations() { };
 
   virtual void initialize_all() {
+    // 初始化一些属性, 尤其是与内存大小相关的一些属性
     CollectorPolicy::initialize_all();
+    // 初始化堆
     initialize_generations();
   }
 
@@ -308,6 +317,7 @@ friend class TestGenCollectorPolicy;
 
 class TwoGenerationCollectorPolicy : public GenCollectorPolicy {
  protected:
+ // 这里主要保存的是老年代的最小值, 初始值和最大值
   size_t _min_gen1_size;
   size_t _initial_gen1_size;
   size_t _max_gen1_size;

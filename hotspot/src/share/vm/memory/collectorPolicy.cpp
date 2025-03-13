@@ -88,6 +88,7 @@ void CollectorPolicy::initialize_flags() {
          err_msg("heap_alignment: " SIZE_FORMAT " not aligned by space_alignment: " SIZE_FORMAT,
                  _heap_alignment, _space_alignment));
 
+  // InitialHeapSize与MaxHeapSize可以通过-XX:InitialHeapSize与-XX:+MaxHeapSize命令指定
   if (FLAG_IS_CMDLINE(MaxHeapSize)) {
     if (FLAG_IS_CMDLINE(InitialHeapSize) && InitialHeapSize > MaxHeapSize) {
       vm_exit_during_initialization("Initial heap size set to a larger value than the maximum heap size");
@@ -102,16 +103,19 @@ void CollectorPolicy::initialize_flags() {
   if (InitialHeapSize < M) {
     vm_exit_during_initialization("Too small initial heap");
   }
+  // _min_heap_byte_size属性也可以通过-Xms命令指定
   if (_min_heap_byte_size < M) {
     vm_exit_during_initialization("Too small minimum heap");
   }
 
+  // 初始堆, 最小堆, 以及最大堆的计算
   // User inputs from -Xmx and -Xms must be aligned
   _min_heap_byte_size = align_size_up(_min_heap_byte_size, _heap_alignment);
   uintx aligned_initial_heap_size = align_size_up(InitialHeapSize, _heap_alignment);
   uintx aligned_max_heap_size = align_size_up(MaxHeapSize, _heap_alignment);
 
   // Write back to flags if the values changed
+  // 如果值有调整, 写回到对应的变量
   if (aligned_initial_heap_size != InitialHeapSize) {
     FLAG_SET_ERGO(uintx, InitialHeapSize, aligned_initial_heap_size);
   }
@@ -123,6 +127,7 @@ void CollectorPolicy::initialize_flags() {
       InitialHeapSize < _min_heap_byte_size) {
     vm_exit_during_initialization("Incompatible minimum and initial heap sizes specified");
   }
+  // 初始堆的内存空间不能大于最大堆, 也不能小于最小堆
   if (!FLAG_IS_DEFAULT(InitialHeapSize) && InitialHeapSize > MaxHeapSize) {
     FLAG_SET_ERGO(uintx, MaxHeapSize, InitialHeapSize);
   } else if (!FLAG_IS_DEFAULT(MaxHeapSize) && InitialHeapSize > MaxHeapSize) {
@@ -134,7 +139,7 @@ void CollectorPolicy::initialize_flags() {
 
   _initial_heap_byte_size = InitialHeapSize;
   _max_heap_byte_size = MaxHeapSize;
-
+  // MinHeapDeltaBytes的解释为The minimum change in heap space due to GC (in bytes)
   FLAG_SET_ERGO(uintx, MinHeapDeltaBytes, align_size_up(MinHeapDeltaBytes, _space_alignment));
 
   DEBUG_ONLY(CollectorPolicy::assert_flags();)
@@ -181,6 +186,7 @@ size_t CollectorPolicy::compute_heap_alignment() {
   // There is only the GenRemSet in Hotspot and only the GenRemSet::CardTable
   // is supported.
   // Requirements of any new remembered set implementations must be added here.
+  // 512 * 4096 = 2MB
   size_t alignment = GenRemSet::max_alignment_constraint(GenRemSet::CardTable);
 
   if (UseLargePages) {
@@ -226,6 +232,7 @@ void GenCollectorPolicy::initialize_size_policy(size_t init_eden_size,
 
 size_t GenCollectorPolicy::young_gen_size_lower_bound() {
   // The young generation must be aligned and have room for eden + two survivors
+  // 对于年轻代来说有一个eden, 两个survivor空间, 所以至少要3*_space_alignment空间, 对齐到代就是年轻代的最小值
   return align_size_up(3 * _space_alignment, _gen_alignment);
 }
 
@@ -286,16 +293,21 @@ void GenCollectorPolicy::initialize_flags() {
   // All generational heaps have a youngest gen; handle those flags here
 
   // Make sure the heap is large enough for two generations
+  // 确定有足够大的堆能容纳两个代
   uintx smallest_new_size = young_gen_size_lower_bound();
+  // 年轻代最小值+老年代最小值 ===> 对齐到堆 就是堆的最小值
   uintx smallest_heap_size = align_size_up(smallest_new_size + align_size_up(_space_alignment, _gen_alignment),
                                            _heap_alignment);
+  // 保证MaxHeapSize不能小于堆的最小值
   if (MaxHeapSize < smallest_heap_size) {
     FLAG_SET_ERGO(uintx, MaxHeapSize, smallest_heap_size);
     _max_heap_byte_size = MaxHeapSize;
   }
   // If needed, synchronize _min_heap_byte size and _initial_heap_byte_size
+  // 保证之前计算出的_min_heap_byte_size不能小于堆的最小值
   if (_min_heap_byte_size < smallest_heap_size) {
     _min_heap_byte_size = smallest_heap_size;
+    // 保证InitialHeapSize不能小于_min_heap_byte_size, 也就是小于堆的最小值
     if (InitialHeapSize < _min_heap_byte_size) {
       FLAG_SET_ERGO(uintx, InitialHeapSize, smallest_heap_size);
       _initial_heap_byte_size = smallest_heap_size;
@@ -304,6 +316,7 @@ void GenCollectorPolicy::initialize_flags() {
 
   // Now take the actual NewSize into account. We will silently increase NewSize
   // if the user specified a smaller or unaligned value.
+  // 将堆的最小值与-XX:+NewSize命令指定的堆的初始值进行比较, 取最大的值为堆的最小值
   smallest_new_size = MAX2(smallest_new_size, (uintx)align_size_down(NewSize, _gen_alignment));
   if (smallest_new_size != NewSize) {
     // Do not use FLAG_SET_ERGO to update NewSize here, since this will override
@@ -315,9 +328,10 @@ void GenCollectorPolicy::initialize_flags() {
 
   if (!FLAG_IS_DEFAULT(MaxNewSize)) {
     uintx min_new_size = MAX2(_gen_alignment, _min_gen0_size);
-
+    // 保证-XX:MaxNewSize指定的新生代可被分配的内存的最大上限不能大于MaxHeapSize
     if (MaxNewSize >= MaxHeapSize) {
       // Make sure there is room for an old generation
+      // 计算MaxNewSize的时候要从MaxHeapSize中减去_gen_alignment, 因为要保证老年代也有空间可用
       uintx smaller_max_new_size = MaxHeapSize - _gen_alignment;
       if (FLAG_IS_CMDLINE(MaxNewSize)) {
         warning("MaxNewSize (" SIZE_FORMAT "k) is equal to or greater than the entire "
@@ -337,6 +351,7 @@ void GenCollectorPolicy::initialize_flags() {
     _max_gen0_size = MaxNewSize;
   }
 
+  // 如果用户指定NewSize过大或者MaxNewSize过小的时候, 需要处理
   if (NewSize > MaxNewSize) {
     // At this point this should only happen if the user specifies a large NewSize and/or
     // a small (but not too small) MaxNewSize.
@@ -359,6 +374,7 @@ void GenCollectorPolicy::initialize_flags() {
 void TwoGenerationCollectorPolicy::initialize_flags() {
   GenCollectorPolicy::initialize_flags();
 
+  // 让-XX:OldSize指定的值与_gen_alignment进行对齐
   if (!is_size_aligned(OldSize, _gen_alignment)) {
     FLAG_SET_ERGO(uintx, OldSize, align_size_down(OldSize, _gen_alignment));
   }
@@ -367,6 +383,8 @@ void TwoGenerationCollectorPolicy::initialize_flags() {
     // NewRatio will be used later to set the young generation size so we use
     // it to calculate how big the heap should be based on the requested OldSize
     // and NewRatio.
+    // 根据-XX:NewRatio命令计算老年代的大小, 默认情况下-XX:NewRatio=2, 表示新生代占1, 老年代占2
+    // 新生代占整个堆的1/3
     assert(NewRatio > 0, "NewRatio should have been set up earlier");
     size_t calculated_heapsize = (OldSize / NewRatio) * (NewRatio + 1);
 
@@ -378,10 +396,12 @@ void TwoGenerationCollectorPolicy::initialize_flags() {
   }
 
   // adjust max heap size if necessary
+  // 如果有必要, 需要调整最大堆的空间
   if (NewSize + OldSize > MaxHeapSize) {
     if (_max_heap_size_cmdline) {
       // somebody set a maximum heap size with the intention that we should not
       // exceed it. Adjust New/OldSize as necessary.
+      // 用户根据实际情况设置了堆的最大内存空间, 所以在必要的时候需要适当调整NewSize和OldSize的值
       uintx calculated_size = NewSize + OldSize;
       double shrink_factor = (double) MaxHeapSize / calculated_size;
       uintx smaller_new_size = align_size_down((uintx)(NewSize * shrink_factor), _gen_alignment);
@@ -425,25 +445,29 @@ void GenCollectorPolicy::initialize_size_info() {
 
   size_t max_new_size = 0;
   if (!FLAG_IS_DEFAULT(MaxNewSize)) {
+    // 如果通过-XX:MaxNewSize选项指定了年轻代的最大值, 就使用指定的值
     max_new_size = MaxNewSize;
   } else {
+    // 在没有指定-XX:MaxNewSize选项的情况下, 使用堆的最大值结合NewRatio计算年轻代的最大值
     max_new_size = scale_by_NewRatio_aligned(_max_heap_byte_size);
     // Bound the maximum size by NewSize below (since it historically
     // would have been NewSize and because the NewRatio calculation could
     // yield a size that is too small) and bound it by MaxNewSize above.
     // Ergonomics plays here by previously calculating the desired
     // NewSize and MaxNewSize.
+    // 计算出来的年轻代的值与NewSize和默认的MaxNewSize值综合考量
     max_new_size = MIN2(MAX2(max_new_size, NewSize), MaxNewSize);
   }
   assert(max_new_size > 0, "All paths should set max_new_size");
 
   // Given the maximum gen0 size, determine the initial and
   // minimum gen0 sizes.
-
+  // 通过年轻代的最大值决定年轻代的初始值和最小值
   if (_max_heap_byte_size == _min_heap_byte_size) {
     // The maximum and minimum heap sizes are the same so
     // the generations minimum and initial must be the
     // same as its maximum.
+    // 当年轻代的最大值和最小值相等的时候, 则初始值只能与它们相等
     _min_gen0_size = max_new_size;
     _initial_gen0_size = max_new_size;
     _max_gen0_size = max_new_size;
@@ -453,6 +477,7 @@ void GenCollectorPolicy::initialize_size_info() {
       // If NewSize is set on the command line, we must use it as
       // the initial size and it also makes sense to use it as the
       // lower limit.
+      // 当指定了NewSize的时候, 计算年轻代的最小值, 期望着, 最大值
       _min_gen0_size = NewSize;
       desired_new_size = NewSize;
       max_new_size = MAX2(max_new_size, NewSize);
@@ -491,12 +516,14 @@ void GenCollectorPolicy::initialize_size_info() {
     // among the three.
 
     // Final check min <= initial <= max
+    // 需要保证年轻代的最小值 <= 年轻代的初始值 <= 年轻代的最大值
     _min_gen0_size = MIN2(_min_gen0_size, _max_gen0_size);
     _initial_gen0_size = MAX2(MIN2(_initial_gen0_size, _max_gen0_size), _min_gen0_size);
     _min_gen0_size = MIN2(_min_gen0_size, _initial_gen0_size);
   }
 
   // Write back to flags if necessary
+  // 将计算出来的年轻代的初始值, 最大值 更新到NewSize和MaxNewSize中
   if (NewSize != _initial_gen0_size) {
     FLAG_SET_ERGO(uintx, NewSize, _initial_gen0_size);
   }
@@ -532,9 +559,11 @@ bool TwoGenerationCollectorPolicy::adjust_gen0_sizes(size_t* gen0_size_ptr,
     if ((heap_size < (*gen0_size_ptr + _min_gen1_size)) &&
         (heap_size >= _min_gen1_size + smallest_new_size)) {
       // Adjust gen0 down to accommodate _min_gen1_size
+      // 缩小年轻代的内存空间
       *gen0_size_ptr = align_size_down_bounded(heap_size - _min_gen1_size, _gen_alignment);
       result = true;
     } else {
+     // 缩小老年代的内存空间
       *gen1_size_ptr = align_size_down_bounded(heap_size - *gen0_size_ptr, _gen_alignment);
     }
   }
@@ -549,6 +578,7 @@ bool TwoGenerationCollectorPolicy::adjust_gen0_sizes(size_t* gen0_size_ptr,
 // but allow the values to pass.
 
 void TwoGenerationCollectorPolicy::initialize_size_info() {
+  // 计算出年轻代的最小值, 初始值, 最大值
   GenCollectorPolicy::initialize_size_info();
 
   // At this point the minimum, initial and maximum sizes
@@ -556,6 +586,8 @@ void TwoGenerationCollectorPolicy::initialize_size_info() {
   // The maximum gen1 size can be determined from the maximum gen0
   // and maximum heap size since no explicit flags exits
   // for setting the gen1 maximum.
+  // 逻辑执行到这里的时候, 堆与年轻代的最小值, 初始值, 最大值已经确定了
+  // 由于代在堆内, 老年代的计算必须要同时考虑堆和年轻代
   _max_gen1_size = MAX2(_max_heap_byte_size - _max_gen0_size, _gen_alignment);
 
   // If no explicit command line flag has been set for the
@@ -566,13 +598,16 @@ void TwoGenerationCollectorPolicy::initialize_size_info() {
     // with the overall heap size).  In either case make
     // the minimum, maximum and initial sizes consistent
     // with the gen0 sizes and the overall heap sizes.
+    // 在没有指定-XX:OldSize选项的情况下, 堆中除去分配给年轻代的内存后剩下的内存就分配给老年代
     _min_gen1_size = MAX2(_min_heap_byte_size - _min_gen0_size, _gen_alignment);
     _initial_gen1_size = MAX2(_initial_heap_byte_size - _initial_gen0_size, _gen_alignment);
     // _max_gen1_size has already been made consistent above
+    // 更新OldSize的值
     FLAG_SET_ERGO(uintx, OldSize, _initial_gen1_size);
   } else {
     // It's been explicitly set on the command line.  Use the
     // OldSize and then determine the consequences.
+    // 通过-XX:OldSize选项指定老年代的内存空间时, 结合OldSize变量的值计算老年代的内存空间
     _min_gen1_size = MIN2(OldSize, _min_heap_byte_size - _min_gen0_size);
     _initial_gen1_size = OldSize;
 
@@ -580,6 +615,7 @@ void TwoGenerationCollectorPolicy::initialize_size_info() {
     // with other command line flags, issue a warning.
     // The generation minimums and the overall heap mimimum should
     // be within one generation alignment.
+    // 如果年轻代最小值+老年代最小值 > 堆的最小值, 则必须机进行调用
     if ((_min_gen1_size + _min_gen0_size + _gen_alignment) < _min_heap_byte_size) {
       warning("Inconsistency between minimum heap size and minimum "
               "generation sizes: using minimum heap = " SIZE_FORMAT,
@@ -593,6 +629,7 @@ void TwoGenerationCollectorPolicy::initialize_size_info() {
     }
     // If there is an inconsistency between the OldSize and the minimum and/or
     // initial size of gen0, since OldSize was explicitly set, OldSize wins.
+    // 如果年轻代的最小值加上老年代的最小值大于堆的最小值, 必须进行调用
     if (adjust_gen0_sizes(&_min_gen0_size, &_min_gen1_size, _min_heap_byte_size)) {
       if (PrintGCDetails && Verbose) {
         gclog_or_tty->print_cr("2: Minimum gen0 " SIZE_FORMAT "  Initial gen0 "
@@ -601,6 +638,7 @@ void TwoGenerationCollectorPolicy::initialize_size_info() {
       }
     }
     // Initial size
+    // 如果初始值相加大于堆的初始值, 则必须进行调用
     if (adjust_gen0_sizes(&_initial_gen0_size, &_initial_gen1_size,
                           _initial_heap_byte_size)) {
       if (PrintGCDetails && Verbose) {
@@ -611,6 +649,7 @@ void TwoGenerationCollectorPolicy::initialize_size_info() {
     }
   }
   // Enforce the maximum gen1 size.
+  // 确保 老年代的最小值 <= 老年代的初始值 <= 老年代的最大值
   _min_gen1_size = MIN2(_min_gen1_size, _max_gen1_size);
 
   // Check that min gen1 <= initial gen1 <= max gen1
@@ -960,7 +999,9 @@ bool GenCollectorPolicy::should_try_older_generation_allocation(
 //
 
 void MarkSweepPolicy::initialize_alignments() {
+  // 值为2^16=65536对齐
   _space_alignment = _gen_alignment = (uintx)Generation::GenGrain;
+  // 2mb对齐
   _heap_alignment = compute_heap_alignment();
 }
 

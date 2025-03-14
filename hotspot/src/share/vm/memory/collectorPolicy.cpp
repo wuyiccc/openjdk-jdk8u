@@ -1006,6 +1006,8 @@ void MarkSweepPolicy::initialize_alignments() {
 }
 
 void MarkSweepPolicy::initialize_generations() {
+  // 最终使用c语言的malloc函数进行内存分配
+  // 这里仅仅是利用_generations保存了后面要创建年轻代和老年代的信息, 后面再创建具体的对象
   _generations = NEW_C_HEAP_ARRAY3(GenerationSpecPtr, number_of_generations(), mtGC, CURRENT_PC,
     AllocFailStrategy::RETURN_NULL);
   if (_generations == NULL) {

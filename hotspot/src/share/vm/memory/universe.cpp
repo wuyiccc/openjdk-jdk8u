@@ -843,7 +843,7 @@ jint Universe::initialize_heap() {
   }
 
   ThreadLocalAllocBuffer::set_max_size(Universe::heap()->max_tlab_size());
-
+  // 初始化堆
   jint status = Universe::heap()->initialize();
   if (status != JNI_OK) {
     return status;
@@ -938,8 +938,9 @@ ReservedSpace Universe::reserve_heap(size_t heap_size, size_t alignment) {
   assert(!UseLargePages
       || UseParallelGC
       || use_large_pages, "Wrong alignment to use large pages");
-
+  // -XX:-UseCompressedOops选项之后, 去掉压缩指针的要求, 返回的addr为NULL, 表示对堆的基地址没有任何要求
   char* addr = Universe::preferred_heap_base(total_reserved, alignment, Universe::UnscaledNarrowOop);
+
 
   ReservedHeapSpace total_rs(total_reserved, alignment, use_large_pages, addr);
 

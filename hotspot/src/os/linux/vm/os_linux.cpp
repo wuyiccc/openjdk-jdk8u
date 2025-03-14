@@ -3283,6 +3283,8 @@ static char* anon_mmap(char* requested_addr, size_t bytes, bool fixed) {
 
   flags = MAP_PRIVATE | MAP_NORESERVE | MAP_ANONYMOUS;
   if (fixed) {
+    // 如果fixed==true, 那么要求分配的内存基地址从request_addr开始, 如果这个基地址被占用
+    // 则会发生重写, 我们对基地址没有要求, 因此fixed==false, request_addr的值为NULL
     assert((uintptr_t)requested_addr % os::Linux::page_size() == 0, "unaligned address");
     flags |= MAP_FIXED;
   }
@@ -3290,6 +3292,7 @@ static char* anon_mmap(char* requested_addr, size_t bytes, bool fixed) {
   // Map reserved/uncommitted pages PROT_NONE so we fail early if we
   // touch an uncommitted page. Otherwise, the read/write might
   // succeed if we have enough swap space to back the physical page.
+  // 分配内存地址空间
   addr = (char*)::mmap(requested_addr, bytes, PROT_NONE,
                        flags, -1, 0);
 

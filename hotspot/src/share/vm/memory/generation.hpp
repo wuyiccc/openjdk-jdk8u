@@ -138,9 +138,9 @@ class Generation: public CHeapObj<mtGC> {
   enum Name {
     ASParNew,
     ASConcurrentMarkSweep,
-    DefNew,
+    DefNew, // + 不使用-XX:UseParNewGC, 或者ParNewGC的-XX:ParallelGCThreads小于1 ---> DefNewGeneration
     ParNew,
-    MarkSweepCompact,
+    MarkSweepCompact, // + 使用-XX:+UseSerialGC 用于old区 ---> TenuredGeneration
     ConcurrentMarkSweep,
     Other
   };

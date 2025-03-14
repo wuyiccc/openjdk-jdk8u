@@ -95,6 +95,7 @@ jint GenCollectedHeap::initialize() {
   CollectedHeap::pre_initialize();
 
   int i;
+  // 返回2, 老年代+年轻代
   _n_gens = gen_policy()->number_of_generations();
 
   // While there are no constraints in the GC code that HeapWordSize
@@ -123,6 +124,7 @@ jint GenCollectedHeap::initialize() {
 
   size_t heap_alignment = collector_policy()->heap_alignment();
 
+  // 为堆分配空间
   heap_address = allocate(heap_alignment, &total_reserved,
                           &n_covered_regions, &heap_rs);
 
@@ -131,7 +133,7 @@ jint GenCollectedHeap::initialize() {
       "Could not reserve enough space for object heap");
     return JNI_ENOMEM;
   }
-
+  // 创建MemRegion对象, 为年轻代和老年代分配内存空间
   _reserved = MemRegion((HeapWord*)heap_rs.base(),
                         (HeapWord*)(heap_rs.base() + heap_rs.size()));
 
@@ -149,6 +151,7 @@ jint GenCollectedHeap::initialize() {
 
   for (i = 0; i < _n_gens; i++) {
     ReservedSpace this_rs = heap_rs.first_part(_gen_specs[i]->max_size(), false, false);
+    // 初始化_gen数组, 创建对应的年轻代和老年代实例
     _gens[i] = _gen_specs[i]->init(this_rs, i, rem_set());
     heap_rs = heap_rs.last_part(_gen_specs[i]->max_size());
   }
@@ -177,6 +180,7 @@ char* GenCollectedHeap::allocate(size_t alignment,
   // Now figure out the total size.
   size_t total_reserved = 0;
   int n_covered_regions = 0;
+  // UseLargePages 表示是否使用大页, 默认为false不使用, 最终获取虚拟机页的大小为4096
   const size_t pageSize = UseLargePages ?
       os::large_page_size() : os::vm_page_size();
 
@@ -199,7 +203,8 @@ char* GenCollectedHeap::allocate(size_t alignment,
 
   *_total_reserved = total_reserved;
   *_n_covered_regions = n_covered_regions;
-
+  // 分配内存
+  // total_reserved是年轻代与老年代的内存最大值之和
   *heap_rs = Universe::reserve_heap(total_reserved, alignment);
   return heap_rs->base();
 }

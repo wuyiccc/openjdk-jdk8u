@@ -39,11 +39,14 @@
 // new and operator new [] added for this special case.
 
 class MetaWord;
-
+// 表示一段连续的内存地址空间, _start属性用于保存基地址, _word_size用于保存地址空间大小
+//
 class MemRegion VALUE_OBJ_CLASS_SPEC {
   friend class VMStructs;
 private:
+  // 保存基地址
   HeapWord* _start;
+  // 保存空间大小
   size_t    _word_size;
 
 public:

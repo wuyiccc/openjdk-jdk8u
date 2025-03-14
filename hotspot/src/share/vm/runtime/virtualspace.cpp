@@ -187,7 +187,7 @@ void ReservedSpace::initialize(size_t size, size_t alignment, bool large,
     // If the memory was requested at a particular address, use
     // os::attempt_reserve_memory_at() to avoid over mapping something
     // important.  If available space is not detected, return NULL.
-
+    // 当对分配的堆地址的基地址有要求的时候, 调用os::attempt_reserve_memory_at()函数进行内存分配
     if (requested_address != 0) {
       base = os::attempt_reserve_memory_at(size, requested_address);
       if (failed_to_reserve_as_requested(base, requested_address, size, false)) {
@@ -195,6 +195,7 @@ void ReservedSpace::initialize(size_t size, size_t alignment, bool large,
         base = NULL;
       }
     } else {
+      // 分配内存地址空间
       base = os::reserve_memory(size, NULL, alignment);
     }
 
@@ -335,11 +336,15 @@ void ReservedSpace::protect_noaccess_prefix(const size_t size) {
          "must be exactly of required size and alignment");
 }
 
-ReservedHeapSpace::ReservedHeapSpace(size_t size, size_t alignment,
-                                     bool large, char* requested_address) :
+ReservedHeapSpace::ReservedHeapSpace(size_t size // 需要分配的内存大小
+, size_t alignment // 内存需要按alignment进行对齐
+, bool large // 默认值为false, 表示不使用大页
+, char* requested_address // 传递为NULL, 代表对基地址没有任何要求
+) :
   ReservedSpace(size, alignment, large,
                 requested_address,
                 (UseCompressedOops && (Universe::narrow_oop_base() != NULL) &&
+                // 由于不使用压缩指针, 因此这里传递的最终参数为0
                  Universe::narrow_oop_use_implicit_null_checks()) ?
                   lcm(os::vm_page_size(), alignment) : 0) {
   if (base() != NULL) {

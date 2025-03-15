@@ -30,7 +30,9 @@
 
 // This class provides the interface between a barrier implementation and
 // the rest of the system.
-
+// 表示一个数据读写动作的栅栏
+// 跟高速缓存中用来在不同CPU之间同步数据的Barrier内存屏障完全不同, BarrierSet的功能类似于一个拦截器
+// 在读写动作实际作用于内存前执行某些前置或后置动作
 class BarrierSet: public CHeapObj<mtGC> {
   friend class VMStructs;
 public:

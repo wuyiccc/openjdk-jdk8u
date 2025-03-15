@@ -99,6 +99,7 @@ public:
 //////////////////////////////////////////////////////////////////////////
 // BlockOffsetSharedArray
 //////////////////////////////////////////////////////////////////////////
+// 偏移表
 class BlockOffsetSharedArray: public CHeapObj<mtGC> {
   friend class BlockOffsetArray;
   friend class BlockOffsetArrayNonContigSpace;
@@ -125,7 +126,9 @@ class BlockOffsetSharedArray: public CHeapObj<mtGC> {
 
   // Array for keeping offsets for retrieving object start fast given an
   // address.
+  // _offset_array需要的虚拟空间
   VirtualSpace _vs;
+  // 字节数组, 用来保存回退偏移的相关信息
   u_char* _offset_array;          // byte array keeping backwards offsets
 
  protected:

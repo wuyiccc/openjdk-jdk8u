@@ -126,6 +126,9 @@ class CardTableModRefBS: public ModRefBarrierSet {
   inline size_t cards_required(size_t covered_words) {
     // Add one for a guard card, used to detect errors.
     const size_t words = align_size_up(covered_words, card_size_in_words);
+    // 由于卡表中的1字节表示堆中的512字节, 所以这里除512得到大小, +1是因为卡表需要有守护页
+    // 假设堆的总空间为2mb, 共262144个字(每字8B), 262144 / 64(512字节转为字单位就是64) = 4096
+    // 4096 + 1 = 4097
     return words / card_size_in_words + 1;
   }
 
@@ -161,6 +164,7 @@ class CardTableModRefBS: public ModRefBarrierSet {
            err_msg("Attempt to access p = " PTR_FORMAT " out of bounds of "
                    " card marking array's _whole_heap = [" PTR_FORMAT "," PTR_FORMAT ")",
                    p2i(p), p2i(_whole_heap.start()), p2i(_whole_heap.end())));
+    // 地址/512. 找到对应的卡表索引
     jbyte* result = &byte_map_base[uintptr_t(p) >> card_shift];
     assert(result >= _byte_map && result < _byte_map + _byte_map_size,
            "out of bounds accessor for card marking array");
@@ -430,6 +434,7 @@ public:
   }
 
   // Mapping from card marking array entry to address of first word
+  // 通过卡表项查找卡页的起始地址的函数
   HeapWord* addr_for(const jbyte* p) const {
     assert(p >= _byte_map && p < _byte_map + _byte_map_size,
            "out of bounds access to card marking array");
@@ -476,6 +481,7 @@ public:
 class CardTableRS;
 
 // A specialization for the CardTableRS gen rem set.
+// 屏障
 class CardTableModRefBSForCTRS: public CardTableModRefBS {
   CardTableRS* _rs;
 protected:

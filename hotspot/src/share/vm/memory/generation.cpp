@@ -391,12 +391,15 @@ CardGeneration::CardGeneration(ReservedSpace rs, size_t initial_byte_size,
   _used_at_prologue()
 {
   HeapWord* start = (HeapWord*)rs.base();
+  // 老年代可用的最大空间
   size_t reserved_byte_size = rs.size();
   assert((uintptr_t(start) & 3) == 0, "bad alignment");
   assert((reserved_byte_size & 3) == 0, "bad alignment");
+  // 创建偏移表
   MemRegion reserved_mr(start, heap_word_size(reserved_byte_size));
   _bts = new BlockOffsetSharedArray(reserved_mr,
                                     heap_word_size(initial_byte_size));
+  // 创建卡表, initial_byte_size表示老年代的初始化内存空间
   MemRegion committed_mr(start, heap_word_size(initial_byte_size));
   _rs->resize_covered_region(committed_mr);
   if (_bts == NULL)

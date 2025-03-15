@@ -48,6 +48,8 @@ CardTableRS::CardTableRS(MemRegion whole_heap,
       _ct_bs = new G1SATBCardTableLoggingModRefBS(whole_heap,
                                                   max_covered_regions);
   } else {
+    // 初始化屏障, 在卡表中通过_ct_bs保持对屏障的引用
+    // 实现卡表和屏障之间的相互引用
     _ct_bs = new CardTableModRefBSForCTRS(whole_heap, max_covered_regions);
   }
 #else
@@ -63,6 +65,7 @@ CardTableRS::CardTableRS(MemRegion whole_heap,
   for (int i = 0; i < GenCollectedHeap::max_gens + 1; i++) {
     _last_cur_val_in_gen[i] = clean_card_val();
   }
+  // 在屏障中通过_rs保持对卡表的引用
   _ct_bs->set_CTRS(this);
 }
 

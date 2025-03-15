@@ -49,10 +49,12 @@ size_t CardTableModRefBS::compute_byte_map_size()
   assert(_guard_index == cards_required(_whole_heap.word_size()) - 1,
                                         "unitialized, check declaration order");
   assert(_page_size != 0, "unitialized, check declaration order");
+  // granularity的值为4096, 也就是一个内存页的大小 4k
   const size_t granularity = os::vm_allocation_granularity();
+  // 对齐之后就是8192
   return align_size_up(_guard_index + 1, MAX2(_page_size, granularity));
 }
-
+// whole_heap表示整个堆内存区域的容量
 CardTableModRefBS::CardTableModRefBS(MemRegion whole_heap,
                                      int max_covered_regions):
   ModRefBarrierSet(max_covered_regions),
@@ -87,9 +89,12 @@ CardTableModRefBS::CardTableModRefBS(MemRegion whole_heap,
 }
 
 void CardTableModRefBS::initialize() {
+  // 计算_guard_index的值
+  // 2mb的堆大小返回为4097 - 1 ===> 4096
   _guard_index = cards_required(_whole_heap.word_size()) - 1;
+  // 4096 - 1 = 4095
   _last_valid_index = _guard_index - 1;
-
+  // 计算出来8192刚好是两个默认内存页的大小, 所以2mb堆内存需要的卡表为2个默认内存页的大小
   _byte_map_size = compute_byte_map_size();
 
   HeapWord* low_bound  = _whole_heap.start();
@@ -125,9 +130,13 @@ void CardTableModRefBS::initialize() {
 
   jbyte* guard_card = &_byte_map[_guard_index];
   uintptr_t guard_page = align_size_down((uintptr_t)guard_card, _page_size);
+  // 最后一个内存页
+  // _byte_map --4096B(第一个内存页)-> guard_card --4096B (_guard_region最后一个内存页)->
   _guard_region = MemRegion((HeapWord*)guard_page, _page_size);
   os::commit_memory_or_exit((char*)guard_page, _page_size, _page_size,
                             !ExecMem, "card table last card");
+  // guard_card指向下一个内存页第一个字节, 其中存储的是last_card的值, 如果在遍历卡表的时候遍历到last_card
+  // 说明卡表遍历完毕, 应该停止遍历
   *guard_card = last_card;
 
   _lowest_non_clean =

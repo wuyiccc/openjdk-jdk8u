@@ -181,6 +181,7 @@ void ThreadLocalAllocBuffer::fill(HeapWord* start,
   initialize(start, top, start + new_size - alignment_reserve());
 
   // Reset amount of internal fragmentation
+  // 为当前新的tlab设置_refill_waste_limit属性的值
   set_refill_waste_limit(initial_refill_waste_limit());
 }
 
@@ -195,22 +196,29 @@ void ThreadLocalAllocBuffer::initialize(HeapWord* start,
 }
 
 void ThreadLocalAllocBuffer::initialize() {
+// 将TLAB类中定义的_start, _top, _end等属性设置为NULL
   initialize(NULL,                    // start
              NULL,                    // top
              NULL);                   // end
-
+  // 计算并设置TLAB的初始期望值
   set_desired_size(initial_desired_size());
 
   // Following check is needed because at startup the main
   // thread is initialized before the heap is.  The initialization for
   // this thread is redone in startup_initialization below.
   if (Universe::heap() != NULL) {
+    // 在堆中支持分配的TLAB内存空间大小, 因为只有eden空间支持, 所以在serial收集器中会返回eden的内存空间
     size_t capacity   = Universe::heap()->tlab_capacity(myThread()) / HeapWordSize;
     // Keep alloc_frac as float and not double to avoid the double to float conversion
+    // 计算这个线程的TLAB期望占用所有的TLAB的总体比例
+    // TLAB期望占用的内存空间也就是这个TLAB的值乘以期望refill的次数
     float alloc_frac = desired_size() * target_refills() / (float) capacity;
     _allocation_fraction.sample(alloc_frac);
   }
-
+ // 计算_refill_waste_limit的初始值
+ // 允许有1/64比例大小的desired_size作为初始值
+ // 表示TLAB中剩余空间的最大允许浪费数量, 当剩余空间小于_refill_waste_limit的时候, jvm会申请一个新的tlab, 并放弃当前tlab
+ // 用于在内存利用率和分配效率之间找到最佳的平衡
   set_refill_waste_limit(initial_refill_waste_limit());
 
   initialize_statistics();
@@ -220,6 +228,8 @@ void ThreadLocalAllocBuffer::startup_initialization() {
 
   // Assuming each thread's active tlab is, on average,
   // 1/2 full at a GC
+  // TLABWasteTargetPercent 设置浪费的TLAB可占用的eden空间的百分比, 默认值为1%,
+  // 因此TLABWasteTargetPercent的值为1
   _target_refills = 100 / (2 * TLABWasteTargetPercent);
   _target_refills = MAX2(_target_refills, (unsigned)1U);
 
@@ -235,20 +245,24 @@ void ThreadLocalAllocBuffer::startup_initialization() {
                         min_size(), Thread::current()->tlab().initial_desired_size(), max_size());
   }
 }
-
+// 计算TLAB的值
 size_t ThreadLocalAllocBuffer::initial_desired_size() {
   size_t init_sz = 0;
-
+  // 使用-XX:TLABSize命令指定一个TLAB的值(默认是0)
   if (TLABSize > 0) {
     init_sz = TLABSize / HeapWordSize;
   } else if (global_stats() != NULL) {
     // Initial size is a function of the average number of allocating threads.
+    // 获取会创建并初始化TLAB的线程个数
     unsigned nof_threads = global_stats()->allocating_threads_avg();
-
+    // 如果没有指定TLABSize的大小, 则采样如下公式进行计算 Eden区大小 / (会创建并初始化tlab的线程个数 * 每个线程refill次数)
+    // refill可以理解为线程获取新的tlab分配对象的行为
     init_sz  = (Universe::heap()->tlab_capacity(myThread()) / HeapWordSize) /
                       (nof_threads * target_refills());
     init_sz = align_object_size(init_sz);
   }
+  // 保证TLAB的最小值 <=TLAB的初始值 <= TLAB的最大值
+  // 如果设置了TLABSize, 那么TLAB的值是TLABSize和max_size()中最小的那个值
   init_sz = MIN2(MAX2(init_sz, min_size()), max_size());
   return init_sz;
 }

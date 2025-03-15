@@ -1066,16 +1066,21 @@ size_t GenCollectedHeap::unsafe_max_tlab_alloc(Thread* thr) const {
   size_t result = 0;
   for (int i = 0; i < _n_gens; i += 1) {
     if (_gens[i]->supports_tlab_allocation()) {
+    // 只有年轻代才支持tlab
       result += _gens[i]->unsafe_max_tlab_alloc();
     }
   }
   return result;
 }
-
+// 为某一线程申请一块本地分配缓冲区tlab
 HeapWord* GenCollectedHeap::allocate_new_tlab(size_t size) {
   bool gc_overhead_limit_was_exceeded;
+  // 为tlab分配内存, true表示分配新的tlab
   return collector_policy()->mem_allocate_work(size /* size */,
                                                true /* is_tlab */,
+                                               // 表示这次内存分配是否发生了gc, 并且gc的时间超过了设置的时间
+                                               // 这个设计主要是为了满足对延时敏感的场景
+                                               // 当为true的时候, 给上层应用抛出oom一次, 以便其进行恰当的处理
                                                &gc_overhead_limit_was_exceeded);
 }
 

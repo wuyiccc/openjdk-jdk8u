@@ -59,6 +59,7 @@ class AdaptiveWeightedAverage : public CHeapObj<mtGC> {
 
   void  increment_count() {
     _sample_count++;
+    // OLD_THRESHOLD = 100,
     if (!_is_old && _sample_count > OLD_THRESHOLD) {
       _is_old = true;
     }

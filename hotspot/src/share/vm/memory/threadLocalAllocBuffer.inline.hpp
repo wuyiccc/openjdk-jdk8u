@@ -54,11 +54,13 @@ inline HeapWord* ThreadLocalAllocBuffer::allocate(size_t size) {
 }
 
 inline size_t ThreadLocalAllocBuffer::compute_size(size_t obj_size) {
+// 按照8字节对齐
   const size_t aligned_obj_size = align_object_size(obj_size);
 
   // Compute the size for the new TLAB.
   // The "last" tlab may be smaller to reduce fragmentation.
   // unsafe_max_tlab_alloc is just a hint.
+  // 获取eden区空闲区的大小
   const size_t available_size = Universe::heap()->unsafe_max_tlab_alloc(myThread()) /
                                                   HeapWordSize;
   size_t new_tlab_size = MIN2(available_size, desired_size() + aligned_obj_size);
@@ -87,7 +89,9 @@ void ThreadLocalAllocBuffer::record_slow_allocation(size_t obj_size) {
   // Raise size required to bypass TLAB next time. Why? Else there's
   // a risk that a thread that repeatedly allocates objects of one
   // size will get stuck on this slow path.
-
+  // 为了防止过多的从堆中分配, hotspot通过TLABWasteIncrement来递增refill_waste_limit, 第一次1%
+  // 下一次是 1% + 4% = 5%, 代表下一次分配对象如果tlab剩余空间小于5%, 那么申请新的tlab, 放弃旧的tlab
+  // 减少直接从堆中申请空间的次数
   set_refill_waste_limit(refill_waste_limit() + refill_waste_limit_increment());
 
   _slow_allocations++;

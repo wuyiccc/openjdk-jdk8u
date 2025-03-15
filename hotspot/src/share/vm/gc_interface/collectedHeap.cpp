@@ -265,6 +265,7 @@ HeapWord* CollectedHeap::allocate_from_tlab_slow(KlassHandle klass, Thread* thre
 
   // Retain tlab and allocate object in shared space if
   // the amount free in the tlab is too large to discard.
+  // 如果tlab中剩余空间太多, 但是不足以为对象分配内存, 则只能从年轻代的eden空间或老年代中分配
   if (thread->tlab().free() > thread->tlab().refill_waste_limit()) {
     thread->tlab().record_slow_allocation(size);
     return NULL;
@@ -272,8 +273,10 @@ HeapWord* CollectedHeap::allocate_from_tlab_slow(KlassHandle klass, Thread* thre
 
   // Discard tlab and allocate a new one.
   // To minimize fragmentation, the last TLAB may be smaller than the rest.
+  // 丢弃原来的tlab, 分配一个新的tlab, 首先计算新分配的tlab的大小
   size_t new_tlab_size = thread->tlab().compute_size(size);
 
+  // 让原tlab保持一种可解析的状态
   thread->tlab().clear_before_allocation();
 
   if (new_tlab_size == 0) {
@@ -281,6 +284,7 @@ HeapWord* CollectedHeap::allocate_from_tlab_slow(KlassHandle klass, Thread* thre
   }
 
   // Allocate a new TLAB...
+  // 分配一个新的tlab
   HeapWord* obj = Universe::heap()->allocate_new_tlab(new_tlab_size);
   if (obj == NULL) {
     return NULL;
@@ -288,6 +292,7 @@ HeapWord* CollectedHeap::allocate_from_tlab_slow(KlassHandle klass, Thread* thre
 
   if (ZeroTLAB) {
     // ..and clear it.
+    // 将新分配的内存清零
     Copy::zero_to_words(obj, new_tlab_size);
   } else {
     // ...and zap just allocated object.
@@ -299,6 +304,7 @@ HeapWord* CollectedHeap::allocate_from_tlab_slow(KlassHandle klass, Thread* thre
     Copy::fill_to_words(obj + hdr_size, new_tlab_size - hdr_size, badHeapWordVal);
 #endif // ASSERT
   }
+  // 初始化tlab的一些参数
   thread->tlab().fill(obj, obj + size, new_tlab_size);
   return obj;
 }
@@ -335,6 +341,11 @@ size_t CollectedHeap::max_tlab_size() const {
   // We actually lose a little by dividing first,
   // but that just makes the TLAB  somewhat smaller than the biggest array,
   // which is fine, since we'll be able to fill that.
+  // 通过TLAB的最大值不会超过一个int数组的大小, 即Integer.MAX_VALUE个int
+  // 因为在分配新的TLAB的时候, 原TLAB中未分配给对象的剩余内存需要填充整数类型的数组, 这个被填充的数组叫做dummy object
+  // 这样的内存空间就是可解析的, 费用有利于提高GC的扫描效率
+  // 为了一定能有填充dummy object的空间, TLAB一般会预留一个dummy object的空间
+  // 也就是一个int[]的header, 所以TLAB的值不能超过int数组的最大值, 否则无法使用dummy object填满未使用的空间
   size_t max_int_size = typeArrayOopDesc::header_size(T_INT) +
               sizeof(jint) *
               ((juint) max_jint / (size_t) HeapWordSize);
@@ -447,7 +458,9 @@ CollectedHeap::fill_with_array(HeapWord* start, size_t words, bool zap)
   post_allocation_setup_common(Universe::intArrayKlassObj(), start);
   DEBUG_ONLY(zap_filler_array(start, words, zap);)
 }
-
+// 为了让tlab保持一种可解析的状态, 向剩余的空闲内存中填充对象, 这样内存看起来是连续的
+// 不会留下空白, 这在扫描内存, 查找对象的时候十分重要, 如果两个对象之间有空白, 那么在查找完第一个对象之后
+// 只能逐个字节的检查下一个对象的起始地址, 这样既耗时又不能保证准确率, 因此会调用fill_with_object()函数填充Object对象或者数组
 void
 CollectedHeap::fill_with_object_impl(HeapWord* start, size_t words, bool zap)
 {

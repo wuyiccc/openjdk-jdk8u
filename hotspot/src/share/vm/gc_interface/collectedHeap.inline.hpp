@@ -137,8 +137,9 @@ HeapWord* CollectedHeap::common_mem_allocate_noinit(KlassHandle klass, size_t si
     NOT_PRODUCT(guarantee(false, "Should not allocate with exception pending"));
     return NULL;  // caller does a CHECK_0 too
   }
-
+  // 在TLAB中分配内存
   HeapWord* result = NULL;
+  // UseTLAB默认为true
   if (UseTLAB) {
     result = allocate_from_tlab(klass, THREAD, size);
     if (result != NULL) {
@@ -147,6 +148,7 @@ HeapWord* CollectedHeap::common_mem_allocate_noinit(KlassHandle klass, size_t si
       return result;
     }
   }
+  // 在堆中分配内存
   bool gc_overhead_limit_was_exceeded = false;
   result = Universe::heap()->mem_allocate(size,
                                           &gc_overhead_limit_was_exceeded);
@@ -187,19 +189,22 @@ HeapWord* CollectedHeap::common_mem_allocate_noinit(KlassHandle klass, size_t si
 }
 
 HeapWord* CollectedHeap::common_mem_allocate_init(KlassHandle klass, size_t size, TRAPS) {
+  // 分配内存
   HeapWord* obj = common_mem_allocate_noinit(klass, size, CHECK_NULL);
+  // 对分配的内存进行部分初始化
   init_obj(obj, size);
   return obj;
 }
 
 HeapWord* CollectedHeap::allocate_from_tlab(KlassHandle klass, Thread* thread, size_t size) {
   assert(UseTLAB, "should use UseTLAB");
-
+  // 从tlab中分配内存
   HeapWord* obj = thread->tlab().allocate(size);
   if (obj != NULL) {
     return obj;
   }
   // Otherwise...
+  // 可能分配新的tlab, 然后在新的tlab中分配内存
   return allocate_from_tlab_slow(klass, thread, size);
 }
 

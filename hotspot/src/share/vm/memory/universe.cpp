@@ -899,7 +899,7 @@ jint Universe::initialize_heap() {
 
   // We will never reach the CATCH below since Exceptions::_throw will cause
   // the VM to exit if an exception is thrown during initialization
-
+  // useTLAB默认值为true, 可以通过-XX:+/-UseTLAB选项来设置
   if (UseTLAB) {
     assert(Universe::heap()->supports_tlab_allocation(),
            "Should support thread-local allocation buffers");

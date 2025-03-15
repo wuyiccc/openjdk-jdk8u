@@ -333,11 +333,15 @@ void GenCollectedHeap::check_for_non_bad_heap_word_value(HeapWord* addr,
 HeapWord* GenCollectedHeap::attempt_allocation(size_t size,
                                                bool is_tlab,
                                                bool first_only) {
+
   HeapWord* res;
+  // 在serial和serial old 回收器中, 堆被分为年轻代和老年代, 因此_n_gens的值为2
   for (int i = 0; i < _n_gens; i++) {
     if (_gens[i]->should_allocate(size, is_tlab)) {
       res = _gens[i]->allocate(size, is_tlab);
       if (res != NULL) return res;
+      // first_only为true的时候, 表示只在年轻代中尝试分配内存
+      // 为false代表先在年轻代中分配内存, 分配失败的时候, 在老年代中尝试分配内存
       else if (first_only) break;
     }
   }

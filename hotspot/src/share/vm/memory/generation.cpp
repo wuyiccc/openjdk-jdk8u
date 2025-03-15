@@ -434,13 +434,17 @@ bool CardGeneration::expand(size_t bytes, size_t expand_bytes) {
   }
   size_t aligned_expand_bytes = ReservedSpace::page_align_size_up(expand_bytes);
   bool success = false;
+  // 当扩容的两小于每次扩容要求的最小容量的时候, 按要求的最小容量扩容
   if (aligned_expand_bytes > aligned_bytes) {
     success = grow_by(aligned_expand_bytes);
   }
+  // 当未扩容/扩容不成功的时候, 按要求的容量进行扩容
   if (!success) {
     success = grow_by(aligned_bytes);
   }
+  // 当扩容不成功的时候, 表示剩余容量小于aligned_expand_bytes和aligned_bytes 只能进行有限的扩容
   if (!success) {
+  // 只扩容了剩余的容量
     success = grow_to_reserved();
   }
   if (PrintGC && Verbose) {
@@ -661,6 +665,7 @@ OneContigSpaceCardGeneration::expand_and_allocate(size_t word_size,
     HeapWord* result = NULL;
     size_t byte_size = word_size * HeapWordSize;
     while (true) {
+    // _min_heap_delta_bytes为每次扩容的最小值, 防止扩容太小导致频繁的执行扩容操作
       expand(byte_size, _min_heap_delta_bytes);
       if (GCExpandToAllocateDelayMillis > 0) {
         os::sleep(Thread::current(), GCExpandToAllocateDelayMillis, false);
@@ -683,6 +688,7 @@ OneContigSpaceCardGeneration::expand_and_allocate(size_t word_size,
 }
 
 bool OneContigSpaceCardGeneration::expand(size_t bytes, size_t expand_bytes) {
+// 加锁解决多线程问题, 保证任何时刻只有一个线程在执行扩容操作
   GCMutexLocker x(ExpandHeap_lock);
   return CardGeneration::expand(bytes, expand_bytes);
 }
@@ -725,14 +731,17 @@ size_t OneContigSpaceCardGeneration::contiguous_available() const {
 
 bool OneContigSpaceCardGeneration::grow_by(size_t bytes) {
   assert_locked_or_safepoint(ExpandHeap_lock);
+  // 对内存代进行扩容
   bool result = _virtual_space.expand_by(bytes);
   if (result) {
     size_t new_word_size =
        heap_word_size(_virtual_space.committed_size());
     MemRegion mr(_the_space->bottom(), new_word_size);
     // Expand card table
+    // 对卡表进行扩容
     Universe::heap()->barrier_set()->resize_covered_region(mr);
     // Expand shared block offset array
+    // 对卡表进行扩容的同时, 还需要对对象偏移量进行扩容
     _bts->resize(new_word_size);
 
     // Fix for bug #4668531
@@ -764,8 +773,10 @@ bool OneContigSpaceCardGeneration::grow_by(size_t bytes) {
 bool OneContigSpaceCardGeneration::grow_to_reserved() {
   assert_locked_or_safepoint(ExpandHeap_lock);
   bool success = true;
+  // 获取剩余可扩容的大小
   const size_t remaining_bytes = _virtual_space.uncommitted_size();
   if (remaining_bytes > 0) {
+  // 进行扩容
     success = grow_by(remaining_bytes);
     DEBUG_ONLY(if (!success) warning("grow to reserved failed");)
   }

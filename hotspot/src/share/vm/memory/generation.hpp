@@ -257,10 +257,16 @@ class Generation: public CHeapObj<mtGC> {
   // wish to exclude very large objects, for example, since, if allocated
   // often, they would greatly increase the frequency of young-gen
   // collection.
+  // 当is_tlab为true的时候, should_allocate直接返回false, 表示老年代不支持tlab内存分配
   virtual bool should_allocate(size_t word_size, bool is_tlab) {
     bool result = false;
+    // 64位操作系统下BitsPerSize_t为64
+    // LogHeapWordSize为3
     size_t overflow_limit = (size_t)1 << (BitsPerSize_t - LogHeapWordSize);
+
     if (!is_tlab || supports_tlab_allocation()) {
+      // 支持tlab分配+申请的内存空间未溢出+申请的内存大小不为0
+      // result为true代表小对象
       result = (word_size > 0) && (word_size < overflow_limit);
     }
     return result;

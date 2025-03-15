@@ -519,6 +519,7 @@ void DefNewGeneration::space_iterate(SpaceClosure* blk,
 
 // The last collection bailed out, we are running out of heap space,
 // so we try to allocate the from-space, too.
+// 从from survivor空间汇总分配内存的时候, gc线程在执行回收任务的时候需要开辟相应的辅助空间来完成内存的回收
 HeapWord* DefNewGeneration::allocate_from_space(size_t size) {
   HeapWord* result = NULL;
   if (Verbose && PrintGCDetails) {
@@ -532,8 +533,11 @@ HeapWord* DefNewGeneration::allocate_from_space(size_t size) {
                         Heap_lock->is_locked() ? "locked" : "unlocked",
                         from()->free());
   }
+  // 支持在from survivor空间中分配内存, 或当前正在进行gc操作的时候可能会从from survivor空间中分配内存
   if (should_allocate_from_space() || GC_locker::is_active_and_needs_gc()) {
+  // 当前线程拥有堆的全局锁
     if (Heap_lock->owned_by_self() ||
+    // 执行gc的vmThread线程借助from survivor空间完成一些安全点下的操作
         (SafepointSynchronize::is_at_safepoint() &&
          Thread::current()->is_VM_thread())) {
       // If the Heap_lock is not locked by this thread, this will be called
@@ -1037,17 +1041,22 @@ HeapWord* DefNewGeneration::allocate(size_t word_size,
   // We try to allocate from the eden.  If that works, we are happy.
   // Note that since DefNewGeneration supports lock-free allocation, we
   // have to use it here, as well.
+  // 以并行的方式快速从eden空间中分配内存
   HeapWord* result = eden()->par_allocate(word_size);
+  // 快速分配内存
   if (result != NULL) {
     if (CMSEdenChunksRecordAlways && _next_gen != NULL) {
       _next_gen->sample_eden_chunk();
     }
     return result;
   }
+  // 扩展eden空间内存空间的方式分配内存
   do {
     HeapWord* old_limit = eden()->soft_end();
     if (old_limit < eden()->end()) {
       // Tell the next generation we reached a limit.
+      // 通知下一个内存代管理器, eden区的使用达到了逻辑(软)限制
+      // 由下一个内存代管理器来决定eden区新的(软)限制位置
       HeapWord* new_limit =
         next_gen()->allocation_limit_reached(eden(), eden()->top(), word_size);
       if (new_limit != NULL) {
@@ -1063,6 +1072,7 @@ HeapWord* DefNewGeneration::allocate(size_t word_size,
       break;
     }
     // Try to allocate until succeeded or the soft limit can't be adjusted
+    // 重试, 知道内存分配成功后者软引用限制不能再调整
     result = eden()->par_allocate(word_size);
   } while (result == NULL);
 
@@ -1070,6 +1080,8 @@ HeapWord* DefNewGeneration::allocate(size_t word_size,
   // out of heap space, and we try to allocate the from-space, too.
   // allocate_from_space can't be inlined because that would introduce a
   // circular dependency at compile time.
+  // 从from survivor空间中分配内存,
+  // eden区没办法分配了, 则从from区分配内存
   if (result == NULL) {
     result = allocate_from_space(word_size);
   } else if (CMSEdenChunksRecordAlways && _next_gen != NULL) {
@@ -1080,6 +1092,7 @@ HeapWord* DefNewGeneration::allocate(size_t word_size,
 
 HeapWord* DefNewGeneration::par_allocate(size_t word_size,
                                          bool is_tlab) {
+  // 优先从eden区分配内存, 如果eden区域不足, 考虑从from survivor中分配, to survivor不参与内存分配 (复制算法需要留出一片空闲区域, 实现对象转移)
   HeapWord* res = eden()->par_allocate(word_size);
   if (CMSEdenChunksRecordAlways && _next_gen != NULL) {
     _next_gen->sample_eden_chunk();

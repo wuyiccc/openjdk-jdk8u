@@ -688,20 +688,27 @@ HeapWord* GenCollectorPolicy::mem_allocate_work(size_t size,
 
   // In general gc_overhead_limit_was_exceeded should be false so
   // set it so here and reset it to true only if the gc time
-  // limit is being exceeded as checked below.
+  // limit is being exceeded as checked below.aa
+  // 先假设gc没有超时, 当GC执行时间超时的时候会设置为true
   *gc_overhead_limit_was_exceeded = false;
 
   HeapWord* result = NULL;
 
   // Loop until the allocation is satisified,
   // or unsatisfied after GC.
+  // 通过重试机制保证内存分配成功, 也有可能在gc后也无法分配成功
   for (uint try_count = 1, gclocker_stalled_count = 0; /* return or throw */; try_count += 1) {
     HandleMark hm; // discard any handles allocated in each iteration
 
     // First allocation attempt is lock-free.
+    // 1. 无锁式分配
+    // 无锁式分配相比全局锁分配来说分配速度比较快, 他是多线程安全的
+    // 内存代管理器内部能够保证外部多线程的并发安全性, 不需要外部调用者来使用额外的锁保证线程安全
     Generation *gen0 = gch->get_gen(0);
     assert(gen0->supports_inline_contig_alloc(),
       "Otherwise, must do alloc within heap lock");
+    // show_allocate函数判断对应的内存代是否支持这次分配请求, DefNewGeneration表示的年轻代
+    // 支持在is_tlab为true的情况下进行内存分配, 如果支持, 调用par_allocate函数进行真正的内存分配
     if (gen0->should_allocate(size, is_tlab)) {
       result = gen0->par_allocate(size, is_tlab);
       if (result != NULL) {
@@ -709,8 +716,11 @@ HeapWord* GenCollectorPolicy::mem_allocate_work(size_t size,
         return result;
       }
     }
+    // 2. 全局锁的方式进行分配
+    // 当年轻代的eden区中分配内存失败后, 会通过加全局锁的方式实现, 可能尝试在from survivor或者老年代中分配
     uint gc_count_before;  // read inside the Heap_lock locked region
     {
+      // 内存堆的全局锁
       MutexLocker ml(Heap_lock);
       if (PrintGC && Verbose) {
         gclog_or_tty->print_cr("TwoGenerationCollectorPolicy::mem_allocate_work:"
@@ -718,27 +728,35 @@ HeapWord* GenCollectorPolicy::mem_allocate_work(size_t size,
       }
       // Note that only large objects get a shot at being
       // allocated in later generations.
+      // should_try_older_generation_allocation 为true的三种方式
+      // 1. 当请求的内存大于年轻代的内存容量, 只能尝试到更老的代中进行内存分配
+      // 2. gc被触发, 但是无法被执行, 因为有mutator线程在jni临界区执行, 阻塞了gc线程
+      // 3. 上一次增量式gc失败, 这一次也极有可能失败, 因此尝试从更老的代中分配内存
       bool first_only = ! should_try_older_generation_allocation(size);
-
+      // 依次尝试从内存堆的各内存代中分配内存空间
       result = gch->attempt_allocation(size, is_tlab, first_only);
       if (result != NULL) {
         assert(gch->is_in_reserved(result), "result not in heap");
         return result;
       }
-
+      // 当前的其他线程已经触发了gc
       if (GC_locker::is_active_and_needs_gc()) {
         if (is_tlab) {
+        // 当前线程是为TLAB申请内存, 这个操作可以暂时延时, 返回null, 让分配请求从堆中申请内存
           return NULL;  // Caller will retry allocating individual object
         }
+        // 内存堆中的某一个内存代允许扩展其大小
         if (!gch->is_maximal_no_gc()) {
           // Try and expand heap to satisfy request
+          // 在允许扩展内存代大小的情况在尝试从内存堆的各内存代中分配内存空间
           result = expand_heap_and_allocate(size, is_tlab);
           // result could be null if we are out of space
           if (result != NULL) {
             return result;
           }
         }
-
+        // 参数GCLockerRetryAllocationCount默认为2, 当分配中的垃圾回收次数超过这个阈值的时候, 不能再次进行gc
+        // 此时只能返回null
         if (gclocker_stalled_count > GCLockerRetryAllocationCount) {
           return NULL; // we didn't get to do a GC and we didn't get any memory
         }
@@ -752,6 +770,7 @@ HeapWord* GenCollectorPolicy::mem_allocate_work(size_t size,
         JavaThread* jthr = JavaThread::current();
         if (!jthr->in_critical()) {
           MutexUnlocker mul(Heap_lock);
+          // 等待所有的执行临界区代码的线程推出, 执行gc操作
           // Wait for JNI critical section to be exited
           GC_locker::stall_until_clear();
           gclocker_stalled_count += 1;
@@ -766,13 +785,18 @@ HeapWord* GenCollectorPolicy::mem_allocate_work(size_t size,
       }
 
       // Read the gc count while the heap lock is held.
+      // 分配失败, 决定触发一次gc操作
       gc_count_before = Universe::heap()->total_collections();
     }
-
+    // 触发一次gc操作, 并等待gc处理结果
     VM_GenCollectForAllocation op(size, is_tlab, gc_count_before);
+    // 将gc任务加入到vmthread的操作队列中, 由vmthread完成垃圾回收
     VMThread::execute(&op);
+    // 一次gc操作已经完成
     if (op.prologue_succeeded()) {
       result = op.result();
+      // 当前线程没有成功触发gc(可能刚才被其他线程触发了)
+      // 则继续重试分配
       if (op.gc_locked()) {
          assert(result == NULL, "must be NULL if gc_locked() is true");
          continue;  // retry and/or stall as necessary
@@ -783,18 +807,22 @@ HeapWord* GenCollectorPolicy::mem_allocate_work(size_t size,
       // this time, return NULL so that an out-of-memory
       // will be thrown.  Clear gc_overhead_limit_exceeded
       // so that the overhead exceeded does not persist.
-
+      // gc已经执行完成, 但是仍然无法满足此次的内存分配请求
+      // 则说明内存紧张, 可以进一步通过清除软引用对象来释放内存
+      // 本次gc耗时是否超过了设置的gc时间上限
       const bool limit_exceeded = size_policy()->gc_overhead_limit_exceeded();
       const bool softrefs_clear = all_soft_refs_clear();
-
+      // gc超时, 并且已经清除过软引用, 那么说明内存不足
       if (limit_exceeded && softrefs_clear) {
         *gc_overhead_limit_was_exceeded = true;
         size_policy()->set_gc_overhead_limit_exceeded(false);
         if (op.result() != NULL) {
           CollectedHeap::fill_with_object(op.result(), size);
         }
+        // gc超时, 给上层调用返回NULL, 让其抛出内存溢出错误
         return NULL;
       }
+      // 分配成功则确保该内存块一定在内存堆中
       assert(result == NULL || gch->is_in_reserved(result),
              "result not in heap");
       return result;
@@ -813,6 +841,7 @@ HeapWord* GenCollectorPolicy::expand_heap_and_allocate(size_t size,
                                                        bool   is_tlab) {
   GenCollectedHeap *gch = GenCollectedHeap::heap();
   HeapWord* result = NULL;
+  // 优先扩展老年代的内存, 如果老年代的内存容量扩容后仍然不满足分配要求, 会继续扩容年轻代的内存容量
   for (int i = number_of_generations() - 1; i >= 0 && result == NULL; i--) {
     Generation *gen = gch->get_gen(i);
     if (gen->should_allocate(size, is_tlab)) {

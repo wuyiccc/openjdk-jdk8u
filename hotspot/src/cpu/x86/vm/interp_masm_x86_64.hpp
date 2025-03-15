@@ -71,6 +71,8 @@
 
   // Helpers for runtime call arguments/results
   void get_method(Register reg) {
+    // %rbp指向栈底, 通过固定偏移量*wordSize可以找到当前new字节码指令所属的method实例(hotspot实现java栈帧的本地约定)
+    // 由于Method实例中保存着ConstMethod指针, 而ConstMethod终保存着指向ConstantPool的指针, 所以最终所有的信息都是可以顺利找到的
     movptr(reg, Address(rbp, frame::interpreter_frame_method_offset * wordSize));
   }
 

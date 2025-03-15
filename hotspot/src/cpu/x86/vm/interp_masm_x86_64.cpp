@@ -193,8 +193,11 @@ void InterpreterMacroAssembler::get_unsigned_2_byte_index_at_bcp(
   Register reg,
   int bcp_offset) {
   assert(bcp_offset >= 0, "bcp is still pointing to start of bytecode");
+  // 加载new指令后面的操作数, 并保存到%rdx中 movzwl指令, 将%r13寄存器存储的字节码指令地址偏移1字节后获取2字节的内容并加载到%edx(rdx的子寄存器)中
   load_unsigned_short(reg, Address(r13, bcp_offset));
+  // bswap会让32位寄存器%edx中存储的内容进行字节次序反转
   bswapl(reg);
+  // shr汇编指令将%edx中的内容右移16位
   shrl(reg, 16);
 }
 

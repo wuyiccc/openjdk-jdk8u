@@ -3313,41 +3313,57 @@ void TemplateTable::invokedynamic(int byte_no) {
 
 //-----------------------------------------------------------------------------
 // Allocation
-
+// 对应new字节码执行的函数, 生成一段机器码
 void TemplateTable::_new() {
   transition(vtos, atos);
+  // 调用对应的InterpreterMacroAssembler::get_unsigned_2_byte_index_at_bcp()函数加载new指令后面的操作数
   __ get_unsigned_2_byte_index_at_bcp(rdx, 1);
   Label slow_case;
   Label done;
   Label initialize_header;
   Label initialize_object; // including clearing the fields
   Label allocate_shared;
-
+  // 获取常量池首地址并放入%rcx中
+  // 常量池中元素类型数组_tags的首地址存放在%rax中
+  // rbp-0x18指向Method*, 存储到rsi中
+  // mov -0x18(%rbp), %rsi
+  // 偏移0x10后就是ConstantMethod*, 存储到rsi中
+  // mov 0x10(%rsi), %rsi
+  // 偏移0x8后就是ConstantPool*, 存储到rsi中
+  // mov 0x8(rsi), %rsi
+  // 偏移0x10后就是tags属性的地址, 存储到rax中
+  // mov 0x10(%rsi), %rax
   __ get_cpool_and_tags(rsi, rax);
   // Make sure the class we're about to instantiate has been resolved.
   // This is done before loading InstanceKlass to be consistent with the order
   // how Constant Pool is updated (see ConstantPool::klass_at_put)
+  // 判断_tags数组中对应元素的类型是否为JVM_CONSTANT_Class 如果不是则跳往slow_case处
   const int tags_offset = Array<u1>::base_offset_in_bytes();
   __ cmpb(Address(rax, rdx, Address::times_1, tags_offset),
           JVM_CONSTANT_Class);
   __ jcc(Assembler::notEqual, slow_case);
 
   // get InstanceKlass
+  // 获取创建对象所属类的地址并放入%rcx中, 即放入的是类的运行时数据结构InstanceKlass
   __ movptr(rsi, Address(rsi, rdx,
             Address::times_8, sizeof(ConstantPool)));
 
   // make sure klass is initialized & doesn't have finalizer
   // make sure klass is fully initialized
+  // 判断类是否已经初始化过, 如果没有初始化过, 则跳往slow_case进行慢速分配
+  // 如果对象所属的类已经初始化过, 则会进行快速分配
   __ cmpb(Address(rsi,
                   InstanceKlass::init_state_offset()),
           InstanceKlass::fully_initialized);
   __ jcc(Assembler::notEqual, slow_case);
 
   // get instance_size in InstanceKlass (scaled to a count of bytes)
+  // rcx存储的时InstanceKlass实例的地址, 利用偏移来获取创建的java对象所需要的内存并保存到%rdx中
   __ movl(rdx,
           Address(rsi,
                   Klass::layout_helper_offset()));
   // test to see if it has a finalizer or is malformed in some way
+  // 如果当前类中有finalizer()方法或有其他原因, 则跳往slow_case进行慢速分配
   __ testl(rdx, Klass::_lh_instance_slow_path_bit);
   __ jcc(Assembler::notZero, slow_case);
 
@@ -3359,8 +3375,9 @@ void TemplateTable::_new() {
 
   const bool allow_shared_alloc =
     Universe::heap()->supports_inline_contig_alloc() && !CMSIncrementalMode;
-
+  // UseTLAB为true
   if (UseTLAB) {
+
     __ movptr(rax, Address(r15_thread, in_bytes(JavaThread::tlab_top_offset())));
     __ lea(rbx, Address(rax, rdx, Address::times_1));
     __ cmpptr(rbx, Address(r15_thread, in_bytes(JavaThread::tlab_end_offset())));

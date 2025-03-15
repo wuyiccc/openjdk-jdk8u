@@ -174,6 +174,7 @@ IRT_ENTRY(void, InterpreterRuntime::_new(JavaThread* thread, ConstantPool* pool,
   //       Java).
   //       If we have a breakpoint, then we don't rewrite
   //       because the _breakpoint bytecode would be lost.
+  // 为java对象分配内存
   oop obj = klass->allocate_instance(CHECK);
   thread->set_vm_result(obj);
 IRT_END

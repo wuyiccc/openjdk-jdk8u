@@ -1194,13 +1194,15 @@ instanceOop InstanceKlass::register_finalizer(instanceOop i, TRAPS) {
 }
 
 instanceOop InstanceKlass::allocate_instance(TRAPS) {
+  // 是否重写finalize方法
   bool has_finalizer_flag = has_finalizer(); // Query before possible GC
+  // 获取对象需要的内存
   int size = size_helper();  // Query before forming handle.
 
   KlassHandle h_k(THREAD, this);
 
   instanceOop i;
-
+  // 分配对象, 同时对分配的内存进行清零(系统初始化), 还会初始化对象头
   i = (instanceOop)CollectedHeap::obj_allocate(h_k, size, CHECK_NULL);
   if (has_finalizer_flag && !RegisterFinalizersAtInit) {
     i = register_finalizer(i, CHECK_NULL);

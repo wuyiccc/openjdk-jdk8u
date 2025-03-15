@@ -40,8 +40,10 @@
 
 void CollectedHeap::post_allocation_setup_common(KlassHandle klass,
                                                  HeapWord* obj_ptr) {
+  // 初始化对象头markOop
   post_allocation_setup_no_klass_install(klass, obj_ptr);
   oop obj = (oop)obj_ptr;
+  // 初始化对象头中的_klass或_compressed_klass属性
 #if ! INCLUDE_ALL_GCS
   obj->set_klass(klass());
 #else

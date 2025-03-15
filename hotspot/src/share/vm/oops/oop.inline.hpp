@@ -124,9 +124,11 @@ inline narrowKlass* oopDesc::compressed_klass_addr() {
 
 inline void oopDesc::set_klass(Klass* k) {
   CHECK_SET_KLASS(k);
+  // 当开启了类指针压缩, 设置_metadata._compressed_klass属性的值
   if (UseCompressedClassPointers) {
     *compressed_klass_addr() = Klass::encode_klass_not_null(k);
   } else {
+    // 设置_metadata._klass属性的值
     *klass_addr() = k;
   }
 }

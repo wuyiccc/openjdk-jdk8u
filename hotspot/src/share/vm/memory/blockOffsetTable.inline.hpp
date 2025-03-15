@@ -48,7 +48,9 @@ inline size_t BlockOffsetSharedArray::index_for(const void* p) const {
   assert(pc >= (char*)_reserved.start() &&
          pc <  (char*)_reserved.end(),
          "p not in range.");
+  // delta是字节的数量
   size_t delta = pointer_delta(pc, _reserved.start(), sizeof(char));
+  // 除以512得到index, 槽位索引
   size_t result = delta >> LogN;
   assert(result < _vs.committed_size(), "bad index from address");
   return result;
@@ -56,6 +58,7 @@ inline size_t BlockOffsetSharedArray::index_for(const void* p) const {
 
 inline HeapWord* BlockOffsetSharedArray::address_for_index(size_t index) const {
   assert(index < _vs.committed_size(), "bad index");
+  // 得到指定index的字单位级别的偏移地址
   HeapWord* result = _reserved.start() + (index << LogN_words);
   assert(result >= _reserved.start() && result < _reserved.end(),
          "bad address from index");

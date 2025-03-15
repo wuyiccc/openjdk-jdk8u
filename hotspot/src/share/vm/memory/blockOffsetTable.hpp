@@ -109,16 +109,18 @@ class BlockOffsetSharedArray: public CHeapObj<mtGC> {
   enum SomePrivateConstants {
     LogN = 9,
     LogN_words = LogN - LogHeapWordSize,
-    N_bytes = 1 << LogN,
-    N_words = 1 << LogN_words
+    N_bytes = 1 << LogN, // 512字节
+    N_words = 1 << LogN_words // 64字, 64*8byte(每个字的大小)=512字节
   };
 
   bool _init_to_zero;
 
   // The reserved region covered by the shared array.
+  // 与当前偏移表对应的所有卡表页组成的区域, 是一个连续的区域
   MemRegion _reserved;
 
   // End of the current committed region.
+  // 已经提交的内存区域的尾地址
   HeapWord* _end;
 
   // Array for keeping offsets for retrieving object start fast given an
@@ -150,6 +152,7 @@ class BlockOffsetSharedArray: public CHeapObj<mtGC> {
     assert(pointer_delta(high, low) <= N_words, "offset too large");
     assert(!reducing || _offset_array[index] >=  (u_char)pointer_delta(high, low),
            "Not reducing");
+    // 存储距离以字为单位进行计量
     _offset_array[index] = (u_char)pointer_delta(high, low);
   }
 
@@ -186,6 +189,7 @@ class BlockOffsetSharedArray: public CHeapObj<mtGC> {
     // because on certain platforms memset() can give concurrent
     // readers "out-of-thin-air," phantom zeros; see 6948537.
     if (UseMemSetInBOT) {
+      // 从&offset_array[left]地址开始, 将num_cards个字节初始化为offset值
       memset(&_offset_array[left], offset, num_cards);
     } else {
       size_t i = left;
@@ -549,6 +553,7 @@ class BlockOffsetArrayContigSpace: public BlockOffsetArray {
   // blk_end are NULL because NULL is represented as 0, and thus
   // never exceeds the "_next_offset_threshold".
   void alloc_block(HeapWord* blk_start, HeapWord* blk_end) {
+    // _next_offset_threshold 当前正在分配的内存页的尾地址
     if (blk_end > _next_offset_threshold) {
       alloc_block_work(blk_start, blk_end);
     }

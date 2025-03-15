@@ -304,6 +304,7 @@ inline HeapWord* Space::block_start(const void* p) {
 inline HeapWord* OffsetTableContigSpace::allocate(size_t size) {
   HeapWord* res = ContiguousSpace::allocate(size);
   if (res != NULL) {
+  // 从老年代中分配对象成功的时候, 需要对对象偏移表进行操作
     _offsets.alloc_block(res, size);
   }
   return res;

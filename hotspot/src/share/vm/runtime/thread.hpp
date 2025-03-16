@@ -853,6 +853,7 @@ class JavaThread: public Thread {
  public:                                         // Expose _thread_state for SafeFetchInt()
   volatile JavaThreadState _thread_state;
  private:
+ // 状态由VM_THREAD来进行维护
   ThreadSafepointState *_safepoint_state;        // Holds information about a thread during a safepoint
   address               _saved_exception_pc;     // Saved pc of instruction where last implicit exception happened
 

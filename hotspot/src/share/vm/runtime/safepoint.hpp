@@ -58,9 +58,12 @@ class nmethod;
 class SafepointSynchronize : AllStatic {
  public:
   enum SynchronizeState {
+     // 相关线程不需要进入安全点
       _not_synchronized = 0,                   // Threads not synchronized at a safepoint
                                                // Keep this value 0. See the coment in do_call_back()
+      // 相关线程需要进入安全点
       _synchronizing    = 1,                   // Synchronizing in progress
+      // 所有的线程都已经进入安全点, 只有VMThread线程在运行
       _synchronized     = 2                    // All Java threads are stopped at a safepoint. Only VM thread is running
   };
 
@@ -92,6 +95,7 @@ class SafepointSynchronize : AllStatic {
 
  private:
   static volatile SynchronizeState _state;     // Threads might read this flag directly, without acquireing the Threads_lock
+  // 表示VMThread线程需要等待阻塞的用户线程数, 只有在这些线程全部阻塞的时候, VMThread线程才能在安全点下执行垃圾回收操作
   static volatile int _waiting_to_block;       // number of threads we are waiting for to block
   static int _current_jni_active_count;        // Counts the number of active critical natives during the safepoint
 
@@ -197,8 +201,11 @@ class ThreadSafepointState: public CHeapObj<mtThread> {
   // to a safepoint.  After SafepointSynchronize::end(), they are reset to
   // _running.
   enum suspend_type {
+  // 线程不在安全点上
     _running                =  0, // Thread state not yet determined (i.e., not at a safepoint yet)
+    // 线程已在安全点上
     _at_safepoint           =  1, // Thread at a safepoint (f.ex., when blocked on a lock)
+    // 线程会继续执行, 不过在必要的时候会执行回调
     _call_back              =  2  // Keep executing and wait for callback (if thread is in interpreted or vm)
   };
  private:

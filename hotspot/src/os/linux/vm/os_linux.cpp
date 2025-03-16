@@ -816,6 +816,7 @@ static void *java_start(Thread *thread) {
   }
 
   // thread_id is kernel thread id (similar to Solaris LWP id)
+  // 通过OSThread实例的_pthread_id保存pthread的id
   osthread->set_thread_id(os::Linux::gettid());
 
   if (UseNUMA) {
@@ -832,6 +833,7 @@ static void *java_start(Thread *thread) {
 
   // handshaking with parent thread
   {
+    // 与创建当前pthread线程的父线程进行状态同步
     MutexLockerEx ml(sync, Mutex::_no_safepoint_check_flag);
 
     // notify parent thread
@@ -839,6 +841,7 @@ static void *java_start(Thread *thread) {
     sync->notify_all();
 
     // wait until os::start_thread()
+    // 新创建的os线程不会立即执行, 会等os::start_thread()的通知
     while (osthread->get_state() == INITIALIZED) {
       sync->wait(Mutex::_no_safepoint_check_flag);
     }
@@ -846,6 +849,8 @@ static void *java_start(Thread *thread) {
 
   // 调用thread的run方法
   // call one more level start routine
+  // 从VMThread的_vm_queue中获取任务并执行
+  // 这里的thread是创建线程的时候传递的VMThread对象
   thread->run();
 
   return 0;
@@ -861,11 +866,13 @@ bool os::create_thread(Thread* thread, ThreadType thr_type, size_t stack_size) {
   }
 
   // set the correct thread state
+  // 设置当前线程类型为os_thread
   osthread->set_thread_type(thr_type);
 
   // Initial state is ALLOCATED but not INITIALIZED
+  // 初始化状态为ALLOCATED
   osthread->set_state(ALLOCATED);
-
+  // 使VMThread的osthread指针指向新建的OSThread实例
   thread->set_osthread(osthread);
 
   // init thread attributes
@@ -920,7 +927,12 @@ bool os::create_thread(Thread* thread, ThreadType thr_type, size_t stack_size) {
     }
 
     pthread_t tid;
-    // 利用pthread_create创建线程
+    // 利用pthread_create创建线程, 传递了java_start函数指针
+    // 创建并允许pthread子线程
+    // 1. 新创建的线程id指向的内存单元
+    // 2. 线程属性, 默认为null
+    // 3. 新创建的线程从start_rtn函数的地址开始运行
+    // 4. 默认为NULL, 若上述函数需要参数, 将参数放入结构中并将地址作为arg传入
     int ret = pthread_create(&tid, &attr, (void* (*)(void*)) java_start, thread);
 
     pthread_attr_destroy(&attr);
@@ -937,9 +949,11 @@ bool os::create_thread(Thread* thread, ThreadType thr_type, size_t stack_size) {
     }
 
     // Store pthread info into the OSThread
+    // 将底层线程的标识符交给OSThread, 我们需要通过这个标识符来管理底层级的线程
     osthread->set_pthread_id(tid);
 
     // Wait until child thread is either initialized or aborted
+    // 当前线程等待, 直到创建的pthread子线程初始化完成或者退出
     {
       Monitor* sync_with_child = osthread->startThread_lock();
       MutexLockerEx ml(sync_with_child, Mutex::_no_safepoint_check_flag);

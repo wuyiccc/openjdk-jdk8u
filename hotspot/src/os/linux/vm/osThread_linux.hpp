@@ -41,6 +41,7 @@
 
   // _pthread_id is the pthread id, which is used by library calls
   // (e.g. pthread_kill).
+  // 保存linux线程pthread的id
   pthread_t _pthread_id;
 
   sigset_t _caller_sigmask; // Caller's signal mask

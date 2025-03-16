@@ -193,7 +193,9 @@ void VM_GenCollectForAllocation::doit() {
 
   GenCollectedHeap* gch = GenCollectedHeap::heap();
   GCCauseSetter gccs(gch, _gc_cause);
+  // 通知内存对管理器处理内存分配失败的情况(这里实现了ygc)
   _result = gch->satisfy_failed_allocation(_word_size, _tlab);
+  // 确保分配的内存块在内存对中
   assert(gch->is_in_reserved_or_null(_result), "result not in heap");
 
   if (_result == NULL && GC_locker::is_active_and_needs_gc()) {
@@ -213,12 +215,13 @@ VM_GenCollectFull::VM_GenCollectFull(uint gc_count_before,
   VM_GC_Operation(gc_count_before, gc_cause, full_gc_count_before,
                   is_full_gc(max_level) /* full */),
   _max_level(max_level) { }
-
+// 实现fullgc
 void VM_GenCollectFull::doit() {
   SvcGCMarker sgcm(SvcGCMarker::FULL);
 
   GenCollectedHeap* gch = GenCollectedHeap::heap();
   GCCauseSetter gccs(gch, _gc_cause);
+  // 实现fullgc
   gch->do_full_collection(gch->must_clear_all_soft_refs(), _max_level);
 }
 

@@ -63,6 +63,7 @@ class OSThread: public CHeapObj<mtThread> {
  private:
   OSThreadStartFunc _start_proc;  // Thread start routine
   void* _start_parm;              // Thread start routine parameter
+  // 线程状态
   volatile ThreadState _state;    // Thread state *hint*
   volatile jint _interrupted;     // Thread.isInterrupted state
 

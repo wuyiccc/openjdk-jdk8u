@@ -3470,19 +3470,24 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
   // real raw monitor. VM is setup enough here for raw monitor enter.
   JvmtiExport::transition_pending_onload_raw_monitors();
 
+  // VMThread::_osthread -> OSThread::_pthread_id -> pthread
   // Create the VMThread
   { TraceTime timer("Start VMThread", TraceStartupTime);
+    // 创建VMThread垃圾回收器线程和VMOperationQueue实例
     VMThread::create();
+    // 获取创建出来的VMThread实例
     Thread* vmthread = VMThread::vm_thread();
 
-    // 这里底层会调用pthread_create创建原生线程
+    // 这里底层会调用pthread_create创建原生线程OSThresd
     if (!os::create_thread(vmthread, os::vm_thread))
       vm_exit_during_initialization("Cannot create VM thread. Out of system resources.");
 
     // Wait for the VM thread to become ready, and VMThread::run to initialize
     // Monitors can have spurious returns, must always check another state flag
     {
+      // 当前线程等待vmThread线程就绪之后才会执行其他逻辑
       MutexLocker ml(Notify_lock);
+      // 启动线程
       os::start_thread(vmthread);
       while (vmthread->active_handles() == NULL) {
         Notify_lock->wait();

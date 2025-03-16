@@ -124,6 +124,7 @@ VM_Operation* VMOperationQueue::queue_drain(int prio) {
   r->set_prev(NULL);
   _queue[prio]->prev()->set_next(NULL);
   // restore queue to empty state
+  // 恢复_queue中保存的SafepointPriority优先级中的列表为空
   _queue[prio]->set_next(_queue[prio]);
   _queue[prio]->set_prev(_queue[prio]);
   assert(queue_empty(prio), "drain corrupted queue");
@@ -176,7 +177,6 @@ bool VMOperationQueue::add(VM_Operation *op) {
   queue_add_back(MediumPriority, op);
   return true;
 }
-
 VM_Operation* VMOperationQueue::remove_next() {
   // Assuming VMOperation queue is two-level priority queue. If there are
   // more than two priorities, we need a different scheduling algorithm.
@@ -194,7 +194,9 @@ VM_Operation* VMOperationQueue::remove_next() {
       high_prio = MediumPriority;
       low_prio  = SafepointPriority;
   }
-
+  // 从对应优先级的任务列表中获取链表的第1个任务并返回
+  // 为了避免一直都是高优先级的任务执行, 一旦_queue_counter执行9次之后, 就会强制将mediumPriority的任务设置为这里的高优先级
+  // 如果说高优先级的任务没有, 那么再获取低优先级的任务
   return queue_remove_front(queue_empty(high_prio) ? low_prio : high_prio);
 }
 
@@ -413,6 +415,7 @@ void VMThread::evaluate_operation(VM_Operation* op) {
 
   // Mark as completed
   if (!op->evaluate_concurrently()) {
+  // 增加Thread::_vm_operation_completed_count属性的值, 表示任务已经执行完成(新增的是JavaThread的属性)
     op->calling_thread()->increment_vm_operation_completed_count();
   }
   // It is unsafe to access the _cur_vm_operation after the 'increment_vm_operation_completed_count' call,
@@ -428,15 +431,19 @@ void VMThread::loop() {
 
   while(true) {
     VM_Operation* safepoint_ops = NULL;
+    // 1. 线程获取任务, 如果没有取到则等待
+    // 2. 线程执行任务
     //
     // Wait for VM operation
     //
     // use no_safepoint_check to get lock without attempting to "sneak"
+    // 由于队列不是一个线程安全容器, 因此需要通过锁来保证线程的安全性
     { MutexLockerEx mu_queue(VMOperationQueue_lock,
                              Mutex::_no_safepoint_check_flag);
 
       // Look for new operation
       assert(_cur_vm_operation == NULL, "no current one should be executing");
+      // 从队列中获取一个新的任务
       _cur_vm_operation = _vm_queue->remove_next();
 
       // Stall time tracking code
@@ -446,9 +453,10 @@ void VMThread::loop() {
         if (stall > 0)
           tty->print_cr("%s stall: %Ld",  _cur_vm_operation->name(), stall);
       }
-
+      // 如果当前线程不应该终止, 并且没有从队列中获取任务的时候, 需要等待
       while (!should_terminate() && _cur_vm_operation == NULL) {
         // wait with a timeout to guarantee safepoints at regular intervals
+        // 线程进行超时等待, 等待的时间为GuaranteedSafepointInterval
         bool timedout =
           VMOperationQueue_lock->wait(Mutex::_no_safepoint_check_flag,
                                       GuaranteedSafepointInterval);
@@ -474,17 +482,23 @@ void VMThread::loop() {
           #endif
           SafepointSynchronize::end();
         }
+        // 线程等待完成后, 继续从队列中获取任务
         _cur_vm_operation = _vm_queue->remove_next();
 
         // If we are at a safepoint we will evaluate all the operations that
         // follow that also require a safepoint
+        // 如果当前获取的任务需要在安全点中执行, 则获取队列中所有需要在安全点中执行的任务
+        // 尽量在一次stw期间内执行完所有需要在安全点中执行的任务
         if (_cur_vm_operation != NULL &&
             _cur_vm_operation->evaluate_at_safepoint()) {
+            // 形成双向链表
+            // 线程获取任务的时候调用drain_at_safepoint_priority获取在安全点中执行的任务列表
           safepoint_ops = _vm_queue->drain_at_safepoint_priority();
         }
       }
-
+      // 在线程将要终止的时候跳出循环
       if (should_terminate()) break;
+      // 释放锁
     } // Release mu_queue_lock
 
     //
@@ -504,14 +518,18 @@ void VMThread::loop() {
 
       // If we are at a safepoint we will evaluate all the operations that
       // follow that also require a safepoint
+      // 需要在安全点中执行的操作
+      // 由于进入安全点需要系统的配合, 所以一旦进入安全点, 我们就需要尽可能的执行多的安全点任务
       if (_cur_vm_operation->evaluate_at_safepoint()) {
-
+        // 将需要在安全点中执行的任务列表保存到_drain_list属性中
         _vm_queue->set_drain_list(safepoint_ops); // ensure ops can be scanned
-
+        // 进入安全点
         SafepointSynchronize::begin();
+        // 执行任务
         evaluate_operation(_cur_vm_operation);
         // now process all queued safepoint ops, iteratively draining
         // the queue until there are none left
+        // 循环执行任务列表中所有的任务
         do {
           _cur_vm_operation = safepoint_ops;
           if (_cur_vm_operation != NULL) {
@@ -538,6 +556,7 @@ void VMThread::loop() {
           // that simply means the op will wait for the next major cycle of the
           // VMThread - just as it would if the GC thread lost the race for
           // the lock.
+          // 在执行任务的过程中, 可能队列又压入了需要在安全点中执行的任务队列, 取出来继续执行
           if (_vm_queue->peek_at_safepoint_priority()) {
             // must hold lock while draining queue
             MutexLockerEx mu_queue(VMOperationQueue_lock,
@@ -551,9 +570,12 @@ void VMThread::loop() {
         _vm_queue->set_drain_list(NULL);
 
         // Complete safepoint synchronization
+        // 离开安全点
         SafepointSynchronize::end();
 
       } else {  // not a safepoint operation
+      // 不需要在安全点中执行的操作
+      // 非安全点任务每次只需要执行一个就可以了, 以免阻塞安全点任务的执行
         if (TraceLongCompiles) {
           elapsedTimer t;
           t.start();
@@ -603,6 +625,9 @@ void VMThread::execute(VM_Operation* op) {
   if (!t->is_VM_thread()) {
     SkipGCALot sgcalot(t);    // avoid re-entrant attempts to gc-a-lot
     // JavaThread or WatcherThread
+    // 对于表示ygc的VM_GenCollectForAllocation任务和表示FGC的VM_GenCollectFull任务来说
+    // concurrent的值为false表示当前的JavaThread和VMThread或其他GC线程不能同时执行,
+    // 因此JavaThread只能等待垃圾回收结束之后才能继续执行
     bool concurrent = op->evaluate_concurrently();
     // only blocking VM operations need to verify the caller's safepoint state:
     if (!concurrent) {
@@ -615,6 +640,7 @@ void VMThread::execute(VM_Operation* op) {
     }
 
     // Setup VM_operations for execution
+    // 设置当前提交的线程
     op->set_calling_thread(t, Thread::get_priority(t));
 
     // It does not make sense to execute the epilogue, if the VM operation object is getting
@@ -623,6 +649,7 @@ void VMThread::execute(VM_Operation* op) {
     assert(!concurrent || op->is_cheap_allocated(), "concurrent => cheap_allocated");
 
     // Get ticket number for non-concurrent VM operations
+    // 生成ticket, 辅助判断提交的任务是否执行完成
     int ticket = 0;
     if (!concurrent) {
       ticket = t->vm_operation_ticket();
@@ -633,8 +660,10 @@ void VMThread::execute(VM_Operation* op) {
     // to be queued up during a safepoint synchronization.
     {
       VMOperationQueue_lock->lock_without_safepoint_check();
+      // 向队列中加入新的任务
       bool ok = _vm_queue->add(op);
     op->set_timestamp(os::javaTimeMillis());
+    // 唤醒vmThread线程, 执行队列中的任务
       VMOperationQueue_lock->notify();
       VMOperationQueue_lock->unlock();
       // VM_Operation got skipped
@@ -648,8 +677,14 @@ void VMThread::execute(VM_Operation* op) {
     if (!concurrent) {
       // Wait for completion of request (non-concurrent)
       // Note: only a JavaThread triggers the safepoint check when locking
+      // 当前的javaThread必须等待任务执行完成后的结果
       MutexLocker mu(VMOperationRequest_lock);
+      // 这里判断任务是否执行完成的逻辑是
+      // hotspot提交任务返回的ticket是 started_count+1之后的值 (JavaThread当前started_count为1, completed_count为0)
+      // vmthread执行完成任务之后, completed_count + 1, 如果说completed_count >= ticket, 说明任务已经执行完成了, 可以不用等待了
       while(t->vm_operation_completed_count() < ticket) {
+      // Thread::_vm_operation_started_count的值大于等于ticket的时候, 表示提交的任务已经执行完成,
+      // JavaThread不必等待, 可以开始运行了
         VMOperationRequest_lock->wait(!t->is_Java_thread());
       }
     }

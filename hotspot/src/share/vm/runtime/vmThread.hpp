@@ -34,18 +34,23 @@
 //
 // Encapsulates both queue management and
 // and priority policy
-//
+// 获取任务的时候, 需要在安全点中执行的任务优先
 class VMOperationQueue : public CHeapObj<mtInternal> {
  private:
   enum Priorities {
+     // 最高优先级, 必须在安全点中执行的任务
      SafepointPriority, // Highest priority (operation executed at a safepoint)
+     // 中优先级, 不必在安全点中执行的任务
      MediumPriority,    // Medium priority
+     // 优先级的数量
      nof_priorities
   };
 
   // We maintain a doubled linked list, with explicit count.
+  // 统计SafepointPriorit和MediumPriorit优先级中的数量
   int           _queue_length[nof_priorities];
   int           _queue_counter;
+  // 将两种优先级的任务用双向链表连接
   VM_Operation* _queue       [nof_priorities];
   // we also allow the vmThread to register the ops it has drained so we
   // can scan them from oops_do
@@ -73,6 +78,7 @@ class VMOperationQueue : public CHeapObj<mtInternal> {
   bool add(VM_Operation *op);
   VM_Operation* remove_next();                        // Returns next or null
   VM_Operation* remove_next_at_safepoint_priority()   { return queue_remove_front(SafepointPriority); }
+  // 将整个SafepointPriority优先级中的任务全部返回, 并清空内部队列
   VM_Operation* drain_at_safepoint_priority() { return queue_drain(SafepointPriority); }
   void set_drain_list(VM_Operation* list) { _drain_list = list; }
   bool peek_at_safepoint_priority() { return queue_peek(SafepointPriority); }
@@ -99,7 +105,7 @@ class VMThread: public NamedThread {
   static bool _gclog_reentry;
   static Monitor * _terminate_lock;
   static PerfCounter* _perf_accumulated_vm_operation_time;
-
+  // 执行队列中的任务
   void evaluate_operation(VM_Operation* op);
  public:
   // Constructor
@@ -110,6 +116,7 @@ class VMThread: public NamedThread {
   bool is_GC_thread() const                      { return true; }
 
   // The ever running loop for the VMThread
+  // vmThread线程通过循环获取队列任务并执行
   void loop();
 
   // Called to stop the VM thread
@@ -120,6 +127,7 @@ class VMThread: public NamedThread {
   static void set_gclog_reentry(bool reentry)     { _gclog_reentry = reentry; }
 
   // Execution of vm operation
+  // 用户线程将任务放到队列中
   static void execute(VM_Operation* op);
 
   // Returns the current vm operation if any.
@@ -140,6 +148,7 @@ class VMThread: public NamedThread {
   static PerfCounter* perf_accumulated_vm_operation_time()               { return _perf_accumulated_vm_operation_time; }
 
   // Entry for starting vm thread
+  // 启动vmThread线程
   virtual void run();
 
   // Creations/Destructions
@@ -148,7 +157,9 @@ class VMThread: public NamedThread {
 
  private:
   // VM_Operation support
+  // 当前vmThread线程正在执行的虚拟机任务
   static VM_Operation*     _cur_vm_operation;   // Current VM operation
+  // 多个任务放队列中
   static VMOperationQueue* _vm_queue;           // Queue (w/ policy) of VM operations
 
   // Pointer to single-instance of VM thread

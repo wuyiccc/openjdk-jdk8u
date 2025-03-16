@@ -789,13 +789,15 @@ void SafepointSynchronize::block(JavaThread *thread) {
 
   // Check that we have a valid thread_state at this point
   switch(state) {
+  // 如果正在进行解释执行的线程, 在ThreadInVMfromJava构造函数中会传递_thread_in_vm状态
+  // 然后在transition()函数中将状态更新为_thread_in_vm_trnas
     case _thread_in_vm_trans:
+    // 如果正在执行编译执行的线程, 则线程的状态是_thread_in_java
     case _thread_in_Java:        // From compiled code
 
       // We are highly likely to block on the Safepoint_lock. In order to avoid blocking in this case,
       // we pretend we are still in the VM.
       thread->set_thread_state(_thread_in_vm);
-
       if (is_synchronizing()) {
          Atomic::inc (&TryingToBlock) ;
       }
@@ -804,19 +806,25 @@ void SafepointSynchronize::block(JavaThread *thread) {
       // of a thread. Hence, the instructions between the Safepoint_lock->lock() and
       // Safepoint_lock->unlock() are happening atomic with regards to the safepoint code
       Safepoint_lock->lock_without_safepoint_check();
+      // 线程正在进行同步, 也就是配置gc进入安全点状态
       if (is_synchronizing()) {
         // Decrement the number of threads to wait for and signal vm thread
         assert(_waiting_to_block > 0, "sanity check");
+        // 减少等待阻塞线程的数量, 这样执行gc的线程如果检测到值为0, 就表示所有需要阻塞的线程都进入了block状态
+        // 可以开始执行gc了
         _waiting_to_block--;
         thread->safepoint_state()->set_has_called_back(true);
 
         DEBUG_ONLY(thread->set_visited_for_critical_count(true));
         if (thread->in_critical()) {
           // Notice that this thread is in a critical section
+          // 当前线程在临界区执行
           increment_jni_active_count();
         }
 
         // Consider (_waiting_to_block < 2) to pipeline the wakeup of the VM thread
+        // 当_waiting_to_block为0的时候, 说明应该进入阻塞的线程都已经进入, 调用notify_all()函数
+        // 唤醒所有在safepoint_lock锁上的线程, 这些线程都是需要在安全点下执行的任务
         if (_waiting_to_block == 0) {
           Safepoint_lock->notify_all();
         }
@@ -828,14 +836,18 @@ void SafepointSynchronize::block(JavaThread *thread) {
       // below because we are often called during transitions while
       // we hold different locks. That would leave us suspended while
       // holding a resource which results in deadlocks.
+      // 设置线程的状态为_thread_blocked
       thread->set_thread_state(_thread_blocked);
+      // 释放safepoint_lock锁
       Safepoint_lock->unlock();
 
       // We now try to acquire the threads lock. Since this lock is hold by the VM thread during
       // the entire safepoint, the threads will all line up here during the safepoint.
+      // 当前线程将在获取Threads_lock锁的时候阻塞, 因为这个锁会被执行安全点中的任务的线程所持有
       Threads_lock->lock_without_safepoint_check();
       // restore original state. This is important if the thread comes from compiled code, so it
       // will continue to execute with the _thread_in_Java state.
+      // 恢复线程原有的状态
       thread->set_thread_state(state);
       Threads_lock->unlock();
       break;

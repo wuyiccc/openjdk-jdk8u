@@ -1010,7 +1010,9 @@ IRT_ENTRY(MethodCounters*, InterpreterRuntime::build_method_counters(JavaThread*
   return mcs;
 IRT_END
 
-
+// 这里宏定义中会创建一个ThreadInVMfromJava对象， 在创建这个对象的时候会调用构造函数
+// 函数调用完成之后会自动调用析构函数.
+// 构造函数中会将线程状态变为_thread_in_vm, 析构函数中, 调用trans将线程状态从_thread_in_vm变为了_thread_in_java
 IRT_ENTRY(void, InterpreterRuntime::at_safepoint(JavaThread* thread))
   // We used to need an explict preserve_arguments here for invoke bytecodes. However,
   // stack traversal automatically takes care of preserving arguments for invoke, so

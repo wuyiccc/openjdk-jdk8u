@@ -271,7 +271,9 @@ address TemplateInterpreterGenerator::generate_safept_entry_for(
         address runtime_entry) {
   address entry = __ pc();
   __ push(state);
+  // 调用at_safepoint()函数进入安全点
   __ call_VM(noreg, runtime_entry);
+  // 从安全点返回后, 转到正常的字节码指令表中寻找下一条指令的入口并执行
   __ dispatch_via(vtos, Interpreter::_normal_table.table_for(vtos));
   return entry;
 }

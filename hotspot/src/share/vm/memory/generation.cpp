@@ -729,6 +729,9 @@ size_t OneContigSpaceCardGeneration::unsafe_max_alloc_nogc() const {
 }
 
 size_t OneContigSpaceCardGeneration::contiguous_available() const {
+// 在计算连续的空闲空间的时候, 一定要加上虚拟内存空间中还未提交使用的空间
+// 这块空间和空闲空间不但连续, 而且当晋升的对象在已有的空闲空间中存储不下的时候
+// 还会进行内存代的扩容, 此时就会将未提交使用的空间囊括进来
   return _the_space->free() + _virtual_space.uncommitted_size();
 }
 

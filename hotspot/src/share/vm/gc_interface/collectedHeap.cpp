@@ -534,6 +534,7 @@ void CollectedHeap::ensure_parsability(bool retire_tlabs) {
          "Attempt to fill tlabs before main thread has been added"
          " to threads list is doomed to failure!");
   for (JavaThread *thread = Threads::first(); thread; thread = thread->next()) {
+  // 循环遍历线程, 将每个线程的最后一个tlab变为可解析的
      if (use_tlab) thread->tlab().make_parsable(retire_tlabs);
 #ifdef COMPILER2
      // The deferred store barriers must all have been flushed to the

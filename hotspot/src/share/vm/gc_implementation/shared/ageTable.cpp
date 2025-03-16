@@ -80,6 +80,8 @@ void ageTable::merge_par(ageTable* subTable) {
 }
 
 uint ageTable::compute_tenuring_threshold(size_t survivor_capacity, GCTracer &tracer) {
+// 设置期望的survivor的占用空间为原空间survivor的一半
+// -XX:TargetSurvivorRatio选项表示To survivor空间占用百分比
   size_t desired_survivor_size = (size_t)((((double) survivor_capacity)*TargetSurvivorRatio)/100);
   size_t total = 0;
   uint age = 1;
@@ -88,6 +90,7 @@ uint ageTable::compute_tenuring_threshold(size_t survivor_capacity, GCTracer &tr
     total += sizes[age];
     // check if including objects of age 'age' made us pass the desired
     // size, if so 'age' is the new threshold
+    // 如果所有小于等于age的对象总容量大于期望值, 则直接跳出
     if (total > desired_survivor_size) break;
     age++;
   }

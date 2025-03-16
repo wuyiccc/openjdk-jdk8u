@@ -300,9 +300,11 @@ void ContiguousSpace::initialize(MemRegion mr,
   CompactibleSpace::initialize(mr, clear_space, mangle_space);
   set_concurrent_iteration_safe_limit(top());
 }
-
+// 全部赋值为_bottom的值
 void ContiguousSpace::clear(bool mangle_space) {
+// 将_bottom的值赋值给top
   set_top(bottom());
+// 将top的值复制给_saved_mark_word
   set_saved_mark();
   CompactibleSpace::clear(mangle_space);
 }

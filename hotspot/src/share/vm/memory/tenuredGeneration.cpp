@@ -289,8 +289,11 @@ void TenuredGeneration::verify_alloc_buffers_clean() {}
 #endif // INCLUDE_ALL_GCS
 
 bool TenuredGeneration::promotion_attempt_is_safe(size_t max_promotion_in_bytes) const {
+// 从当前代或者比当前代更高的内存代中找出连续空间的最大值, 由于当前老年代没有更高的内存代, 所以只是找出老年代中连续空闲空间
   size_t available = max_contiguous_available();
   size_t av_promo  = (size_t)gc_stats()->avg_promoted()->padded_average();
+  // 这里将空闲空间 与 之前的平均年轻代晋升空间 或者 当前最大可能的晋升空间相比较, 二者满足一个就返回true
+  // 当然了, 满足条件一, 平均晋升空间还是可能存在晋升失败的情况, 如果失败, 那么就进行fgc
   bool   res = (available >= av_promo) || (available >= max_promotion_in_bytes);
   if (PrintGC && Verbose) {
     gclog_or_tty->print_cr(

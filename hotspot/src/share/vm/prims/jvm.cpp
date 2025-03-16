@@ -578,6 +578,7 @@ JVM_ENTRY(void, JVM_MonitorWait(JNIEnv* env, jobject handle, jlong ms))
   Handle obj(THREAD, JNIHandles::resolve_non_null(handle));
   JavaThreadInObjectWaitState jtiows(thread, ms != 0);
   if (JvmtiExport::should_post_monitor_wait()) {
+  // 在这里转换线程状态的时候会对安全点进行处理 ThreadStateTransition::transition
     JvmtiExport::post_monitor_wait((JavaThread *)THREAD, (oop)obj(), ms);
 
     // The current thread already owns the monitor and it has not yet

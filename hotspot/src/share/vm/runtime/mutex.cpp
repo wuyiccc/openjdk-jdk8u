@@ -1104,6 +1104,9 @@ bool Monitor::wait(bool no_safepoint_check, long timeout, bool as_suspend_equiva
     JavaThread *jt = (JavaThread *)Self;
 
     // Enter safepoint region - ornate and Rococo ...
+    // 在构造函数中将线程状态由_thread_in_vm转换为_thread_blocked()
+    // 在析构函数中将线程状态由_thread_blocked还原为_thread_in_vm
+    // 调用trans_and_fence和IWait()都可能让线程处于暂停状态
     ThreadBlockInVM tbivm(jt);
     OSThreadWaitState osts(Self->osthread(), false /* not Object.wait() */);
 
@@ -1112,7 +1115,7 @@ bool Monitor::wait(bool no_safepoint_check, long timeout, bool as_suspend_equiva
       // cleared by handle_special_suspend_equivalent_condition() or
       // java_suspend_self()
     }
-
+    // 调用IWait函数让线程处于等待状态
     wait_status = IWait (Self, timeout) ;
 
     // were we externally suspended while we were waiting?

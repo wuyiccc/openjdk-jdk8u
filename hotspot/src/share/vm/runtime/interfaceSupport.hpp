@@ -167,6 +167,7 @@ class ThreadStateTransition : public StackObj {
     assert(thread->thread_state() == from, "coming from wrong thread state");
     assert((from & 1) == 0 && (to & 1) == 0, "odd numbers are transitions states");
     // Change to transition state (assumes total store ordering!  -Urs)
+    // 更新为过渡的状态, 大部分的线程状态都有对应的过渡状态
     thread->set_thread_state((JavaThreadState)(from + 1));
 
     // Make sure new state is seen by VM thread
@@ -179,10 +180,13 @@ class ThreadStateTransition : public StackObj {
         InterfaceSupport::serialize_memory(thread);
       }
     }
-
+    // 在do_call_back()函数中判断_state是否不等于_not_synchronized, 如果不等于,
+    // 那么就返回true, 然后进行阻塞
     if (SafepointSynchronize::do_call_back()) {
+    // 调用block()函数进入安全点
       SafepointSynchronize::block(thread);
     }
+    // 更新线程的状态为目的状态
     thread->set_thread_state(to);
 
     CHECK_UNHANDLED_OOPS_ONLY(thread->clear_unhandled_oops();)

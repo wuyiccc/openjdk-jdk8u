@@ -1499,7 +1499,9 @@ DT_RETURN_MARK_DECL(NewObject, jobject);
 DT_RETURN_MARK_DECL(NewObject, jobject
                     , HOTSPOT_JNI_NEWOBJECT_RETURN(_ret_ref));
 #endif /* USDT2 */
-
+// jni_NewObject()函数在执行过程中会创建新的实例i, 因此当serial和serial old收集器执行垃圾回收任务的时候必须阻止这种操作
+// JNI_ENTRY宏定义是关机, 该宏定义创建了一个ThreadInvmfromNative实例, 创建这个实例的时候会自动调用构造函数
+// 构造函数调用完毕之后, 自动调用析构函数
 JNI_ENTRY(jobject, jni_NewObject(JNIEnv *env, jclass clazz, jmethodID methodID, ...))
   JNIWrapper("NewObject");
 #ifndef USDT2

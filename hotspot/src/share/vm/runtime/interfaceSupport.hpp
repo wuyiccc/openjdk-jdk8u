@@ -204,6 +204,7 @@ class ThreadStateTransition : public StackObj {
     assert((to & 1) == 0, "odd numbers are transitions states");
     assert(thread->thread_state() == _thread_in_native, "coming from wrong thread state");
     // Change to transition state (assumes total store ordering!  -Urs)
+    // 将线程的状态由_thread_in_native设置为_thread_in_native_trans
     thread->set_thread_state(_thread_in_native_trans);
 
     // Make sure new state is seen by GC thread
@@ -220,6 +221,9 @@ class ThreadStateTransition : public StackObj {
     // We never install asynchronous exceptions when coming (back) in
     // to the runtime from native code because the runtime is not set
     // up to handle exceptions floating around at arbitrary points.
+    // 调用do_call_back和is_suspend_after_native函数判断当前执行native代码的线程是否需要暂停,
+    // 如果需要, 则调用JavaThread::check_safepoint_and_suspend_for_native_trans函数暂停执行当前线程
+    //, 直到GC完成后再恢运行
     if (SafepointSynchronize::do_call_back() || thread->is_suspend_after_native()) {
       JavaThread::check_safepoint_and_suspend_for_native_trans(thread);
 

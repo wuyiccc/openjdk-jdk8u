@@ -512,7 +512,9 @@ JVM_handle_linux_signal(int sig,
   if (stub != NULL) {
     // save all thread context in case we need to restore it
     if (thread != NULL) thread->set_saved_exception_pc(pc);
-
+    // VMThread构造页不可读的状态的时候, 线程试图读取这个内存页就会产生错误信号, 然后处理错误信号执行到这里
+    // 信号处理器函数会执行stub, 而stub是一段预先生成好的机器码片段, 有多种类型的stub,
+    // 但是不管是哪种类型的stub, 最终都会调用SafepointSynchronize::block函进行阻塞
     uc->uc_mcontext.gregs[REG_PC] = (greg_t)stub;
     return true;
   }

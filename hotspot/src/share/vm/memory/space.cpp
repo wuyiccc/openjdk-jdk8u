@@ -95,6 +95,7 @@ void DirtyCardToOopClosure::walk_mem_region(MemRegion mr,
     // block alignment or minimum block size restrictions. XXX
     if (_sp->block_is_obj(bottom) &&
         !_sp->obj_allocated_since_save_marks(oop(bottom))) {
+        // 遍历对象的所有引用字段
       oop(bottom)->oop_iterate(_cl, mr);
     }
   }
@@ -136,7 +137,7 @@ void DirtyCardToOopClosure::do_MemRegion(MemRegion mr) {
          top <= _last_bottom,
          "Not decreasing");
   NOT_PRODUCT(_last_bottom = mr.start());
-
+  // mr表示连续n个卡页， 查找第一个卡页的第一个对象和最后一个卡页之后的第1个对象
   bottom_obj = _sp->block_start(bottom);
   top_obj    = _sp->block_start(last);
 

@@ -789,6 +789,7 @@ void GenCollectedHeap::gen_process_roots(int level,
   }
   // When collection is parallel, all threads get to cooperate to do
   // older-gen scanning.
+  // 标记老年代引用的对象
   for (int i = level+1; i < _n_gens; i++) {
     older_gens->set_generation(_gens[i]);
     rem_set()->younger_refs_iterate(_gens[i], older_gens);

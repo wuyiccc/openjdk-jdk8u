@@ -2399,7 +2399,8 @@ int InstanceKlass::oop_oop_iterate_backwards##nv_suffix(oop obj,                
    return size_helper();                                                        \
 }
 #endif // INCLUDE_ALL_GCS
-
+// oop(bottom)->oop_iterate(cl, mr); 调用到这里宏定义
+// closure 为FilteringClosure, 然后调用对应的do_oop_nv()
 #define InstanceKlass_OOP_OOP_ITERATE_DEFN_m(OopClosureType, nv_suffix) \
                                                                         \
 int InstanceKlass::oop_oop_iterate##nv_suffix##_m(oop obj,              \

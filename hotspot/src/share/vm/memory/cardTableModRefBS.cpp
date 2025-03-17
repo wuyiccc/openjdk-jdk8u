@@ -453,6 +453,7 @@ void CardTableModRefBS::non_clean_card_iterate_possibly_parallel(Space* sp,
                                                                  MemRegion mr,
                                                                  OopsInGenClosure* cl,
                                                                  CardTableRS* ct) {
+  // 由于serial收集器是单线程收集器, 因此省略了多线程处理的逻辑
   if (!mr.is_empty()) {
     // Caller (process_roots()) claims that all GC threads
     // execute this call.  With UseDynamicNumberOfGCThreads now all
@@ -500,7 +501,7 @@ void CardTableModRefBS::non_clean_card_iterate_possibly_parallel(Space* sp,
       // we want to clear the cards (which non_clean_card_iterate_serial() does not
       // do for us): clear_cl here does the work of finding contiguous dirty ranges
       // of cards to process and clear.
-
+      // DirtyCardToOopClosure闭包封装了根据脏卡扫描内存区域的逻辑
       DirtyCardToOopClosure* dcto_cl = sp->new_dcto_cl(cl, precision(),
                                                        cl->gen_boundary());
       ClearNoncleanCardWrapper clear_cl(dcto_cl, ct);

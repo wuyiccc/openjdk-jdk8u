@@ -197,10 +197,13 @@ void ClearNoncleanCardWrapper::do_MemRegion(MemRegion mr) {
   assert(mr.word_size() > 0, "Error");
   assert(_ct->is_aligned(mr.start()), "mr.start() should be card aligned");
   // mr.end() may not necessarily be card aligned.
+  // 根据要扫描的内存范围确定卡表索引的范围, 因为卡表是从后向前扫描查找脏卡, 所以
+  // 最后一个卡表索引为cur_entry, 而开始的卡表索引为limit
   jbyte* cur_entry = _ct->byte_for(mr.last());
   const jbyte* limit = _ct->byte_for(mr.start());
   HeapWord* end_of_non_clean = mr.end();
   HeapWord* start_of_non_clean = end_of_non_clean;
+  // 根据要扫描的内存范围确定卡表索引范围, 因为卡表是从后向前扫描查找脏卡
   while (cur_entry >= limit) {
     HeapWord* cur_hw = _ct->addr_for(cur_entry);
     if ((*cur_entry != CardTableRS::clean_card_val()) && clear_card(cur_entry)) {
@@ -210,12 +213,15 @@ void ClearNoncleanCardWrapper::do_MemRegion(MemRegion mr) {
     } else {
       // We hit a "clean" card; process any non-empty
       // "dirty" range accumulated so far.
+      // 在start_of_non_clean~end_of_non_clean范围之间的是连续的脏卡
       if (start_of_non_clean < end_of_non_clean) {
         const MemRegion mrd(start_of_non_clean, end_of_non_clean);
         _dirty_card_closure->do_MemRegion(mrd);
       }
 
       // fast forward through potential continuous whole-word range of clean cards beginning at a word-boundary
+      // 之前判断脏卡是按照字节来判断的, 一次判断只能比较一个字节, 如果说卡表是按照字对齐的, 那么加快一下速度
+      // 一次性比较一个字的大小, 也就是说一次性检查8字节是否为脏卡
       if (is_word_aligned(cur_entry)) {
         jbyte* cur_row = cur_entry - BytesPerWord;
         while (cur_row >= limit && *((intptr_t*)cur_row) ==  CardTableRS::clean_card_row()) {
@@ -301,6 +307,9 @@ void CardTableRS::younger_refs_in_space_iterate(Space* sp,
             "[" PTR_FORMAT ", " PTR_FORMAT ")",
              p2i(urasm.start()), p2i(urasm.end()), p2i(ur.start()), p2i(ur.end()));
     MemRegion ur2 = sp->used_region();
+    // 确定扫描的范围为_bottom -> _saved_mark_word
+    // 获取的是TenuredSpace的_bottom到_saved_mark_word范围之间的对象,
+    // 在执行ygc之前会初始化_top属性的值, 对于serial收集器来说 _saved_mark_word与_top属性的值永远相同
     MemRegion urasm2 = sp->used_region_at_save_marks();
     if (!ur.equals(ur2)) {
       warning("CMS+ParNew: Flickering used_region()!!");
@@ -311,6 +320,7 @@ void CardTableRS::younger_refs_in_space_iterate(Space* sp,
     ShouldNotReachHere();
   }
 #endif
+  // 扫描特定范围内的对象, 不过并不是全量扫描, 只扫描脏卡对应的内存区域
   _ct_bs->non_clean_card_iterate_possibly_parallel(sp, urasm, cl, this);
 }
 

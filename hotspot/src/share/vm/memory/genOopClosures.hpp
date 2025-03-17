@@ -162,6 +162,9 @@ class FilteringClosure: public ExtendedOopClosure {
     if (!oopDesc::is_null(heap_oop)) {
       oop obj = oopDesc::decode_heap_oop_not_null(heap_oop);
       if ((HeapWord*)obj < _boundary) {
+      // _cl是声明在FilteringClosure类中类型为ExtendedOopClosure*的变量
+      // 最终调用到FastScanClosure::do_oop_work函数, 如果p引用的是年轻代对象
+      // 则标记并复制对象, 如果已经设置了转发指针, 则只是简单的更新引用地址即可
         _cl->do_oop(p);
       }
     }

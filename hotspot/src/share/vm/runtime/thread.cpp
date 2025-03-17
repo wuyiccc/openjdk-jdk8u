@@ -840,7 +840,9 @@ void Thread::oops_do(OopClosure* f, CLDClosure* cld_f, CodeBlobClosure* cf) {
     active_handles()->oops_do(f);
   }
   // Do oop for ThreadShadow
+  // 处理ThreadShadow::_pending_exception
   f->do_oop((oop*)&_pending_exception);
+  // 获取Thread类中的_handle_area变量的值
   handle_area()->oops_do(f);
 }
 
@@ -4238,11 +4240,15 @@ void Threads::possibly_parallel_oops_do(OopClosure* f, CLDClosure* cld_f, CodeBl
          (SharedHeap::heap()->n_par_threads() ==
           SharedHeap::heap()->workers()->active_workers()), "Mismatch");
   int cp = SharedHeap::heap()->strong_roots_parity();
+  // 这里宏定义for循环 遍历执行java应用程序的JavaThread线程
+  // 这些线程必须进行遍历, 包括解释栈和编译栈
   ALL_JAVA_THREADS(p) {
     if (p->claim_oops_do(is_par, cp)) {
       p->oops_do(f, cld_f, cf);
     }
   }
+  // 遍历虚拟机线程VMThread, 之前介绍的从队列中获取年轻代与老年代回收任务的线程就是VMThread
+  // 这个线程可以作为GCA回收的线程
   VMThread* vmt = VMThread::vm_thread();
   if (vmt->claim_oops_do(is_par, cp)) {
     vmt->oops_do(f, cld_f, cf);

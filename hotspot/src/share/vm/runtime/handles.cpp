@@ -86,9 +86,11 @@ NOT_PRODUCT(jint _nof_handlemarks  = 0;)
 void HandleArea::oops_do(OopClosure* f) {
   uintx handles_visited = 0;
   // First handle the current chunk. It is filled to the high water mark.
+  // 首先遍历列表中最后一个使用的chunk块, 也就是用来分配句柄的块
   handles_visited += chunk_oops_do(f, _chunk, _hwm);
   // Then handle all previous chunks. They are completely filled.
   Chunk* k = _first;
+  // 遍历最后一个块之前所有块, 这些块中已经没有空闲的槽位可以分配句柄了
   while(k != _chunk) {
     handles_visited += chunk_oops_do(f, k, k->top());
     k = k->next();
@@ -103,6 +105,7 @@ void HandleArea::oops_do(OopClosure* f) {
     warning("Visited in HandleMark : %d", handles_visited);
 #endif
   }
+  // _prev为HandleArea*类型
   if (_prev != NULL) _prev->oops_do(f);
 }
 

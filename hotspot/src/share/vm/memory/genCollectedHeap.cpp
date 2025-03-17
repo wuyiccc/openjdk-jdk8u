@@ -67,6 +67,7 @@ GenCollectedHeap* GenCollectedHeap::_gch;
 NOT_PRODUCT(size_t GenCollectedHeap::_skip_header_HeapWords = 0;)
 
 // The set of potentially parallel tasks in root scanning.
+// _tasks数组的下标枚举
 enum GCH_strong_roots_tasks {
   GCH_PS_Universe_oops_do,
   GCH_PS_JNIHandles_oops_do,
@@ -668,6 +669,8 @@ void GenCollectedHeap::process_roots(bool activate_scope,
   // is executing in another GC worker.
 
   if (!_process_strong_tasks->is_task_claimed(GCH_PS_ClassLoaderDataGraph_oops_do)) {
+  // 每个classloader实例都对应一个classloaderData实例, 后者保存了前者加载的所有klass, 加载过程中的依赖和常量池引用,
+  // 可以通过classLoaderDatGraph遍历所有的classLoaderData实例
     ClassLoaderDataGraph::roots_cld_do(strong_cld_closure, weak_cld_closure);
   }
 
@@ -676,31 +679,43 @@ void GenCollectedHeap::process_roots(bool activate_scope,
   CLDClosure* roots_from_clds_p = (strong_cld_closure != weak_cld_closure) ? strong_cld_closure : NULL;
   // Only process code roots from thread stacks if we aren't visiting the entire CodeCache anyway
   CodeBlobToOopClosure* roots_from_code_p = (so & SO_AllCodeCache) ? NULL : code_roots;
-
+  // 这两个函数会遍历java的解释栈和编译栈, java线程在解释执行java方法的时候, 每个java方法对应一个调用栈帧, 这些栈帧的结构基本固定
+  // 栈帧中含有本地变量表, 另外, 在一些可定位的位置上还固定存储着一些对oop的引用(如监视器对象),
+  // 垃圾收集器会遍历这些解释栈中引用的oop并进行处理, java线程在编译执行java方法的时候, 编译执行的汇编代码是由编译器生成的,
+  // 同一个方法在不同的编译级别下产生的汇编代码可能不一样, 因此编译器生成的汇编代码会使用一个单独的oopMap记录栈帧中引用的oop, 以保存
+  // 汇编代码的CodeBlob通过OopMapSet保存的所有OopMap, 可通过栈帧的基地址获取对应的OopMap, 然后遍历编译栈中引用的所有oop
   Threads::possibly_parallel_oops_do(strong_roots, roots_from_clds_p, roots_from_code_p);
 
   if (!_process_strong_tasks->is_task_claimed(GCH_PS_Universe_oops_do)) {
+    // 主要将Universe::initialize_basic_type_mirrors()函数中创建的基本类型的mirror的instanceOop实例
+    // 表示java.lang.Class对象作为根遍历(gc的时候)
     Universe::oops_do(strong_roots);
   }
   // Global (strong) JNI handles
   if (!_process_strong_tasks->is_task_claimed(GCH_PS_JNIHandles_oops_do)) {
+    // 遍历全局JNI句柄引用的oop
     JNIHandles::oops_do(strong_roots);
   }
 
   if (!_process_strong_tasks->is_task_claimed(GCH_PS_ObjectSynchronizer_oops_do)) {
+  // ObjectSynchronizer中维护的与监视器锁关联的oop
     ObjectSynchronizer::oops_do(strong_roots);
   }
   if (!_process_strong_tasks->is_task_claimed(GCH_PS_FlatProfiler_oops_do)) {
+  // 遍历所有线程中ThreadProfiler, 在OpenJDK9中已弃用的FlatProfiler
     FlatProfiler::oops_do(strong_roots);
   }
   if (!_process_strong_tasks->is_task_claimed(GCH_PS_Management_oops_do)) {
+  // MBean所持有的对象
     Management::oops_do(strong_roots);
   }
   if (!_process_strong_tasks->is_task_claimed(GCH_PS_jvmti_oops_do)) {
+  // JVMTI导出的对象, 断点或者对象分配事件收集器的相关对象
     JvmtiExport::oops_do(strong_roots);
   }
 
   if (!_process_strong_tasks->is_task_claimed(GCH_PS_SystemDictionary_oops_do)) {
+  // SystemDictionary是系统字典, 记录了所有加载的klass, 通过klass名称和类加载器可以唯一确定一个klass实例
     SystemDictionary::roots_oops_do(strong_roots, weak_roots);
   }
 
@@ -708,6 +723,7 @@ void GenCollectedHeap::process_roots(bool activate_scope,
   // from the StringTable are the individual tasks.
   if (weak_roots != NULL) {
     if (CollectedHeap::use_parallel_gc_threads()) {
+    // StringTable是用来支持字符串驻留
       StringTable::possibly_parallel_oops_do(weak_roots);
     } else {
       StringTable::oops_do(weak_roots);
@@ -719,6 +735,7 @@ void GenCollectedHeap::process_roots(bool activate_scope,
       assert(code_roots != NULL, "must supply closure for code cache");
 
       // We only visit parts of the CodeCache when scavenging.
+      // CodeCache代码引用
       CodeCache::scavenge_root_nmethods_do(code_roots);
     }
     if (so & SO_AllCodeCache) {

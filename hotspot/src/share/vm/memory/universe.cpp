@@ -167,6 +167,8 @@ void Universe::basic_type_classes_do(void f(Klass*)) {
   f(doubleArrayKlassObj());
 }
 
+// 主要将Universe::initialize_basic_type_mirrors()函数中创建的基本类型的mirror的instanceOop实例
+// 表示java.lang.Class对象作为根遍历(gc的时候)
 void Universe::oops_do(OopClosure* f, bool do_all) {
 
   f->do_oop((oop*) &_int_mirror);

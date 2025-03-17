@@ -730,6 +730,7 @@ void VMThread::execute(VM_Operation* op) {
 
 void VMThread::oops_do(OopClosure* f, CLDClosure* cld_f, CodeBlobClosure* cf) {
   Thread::oops_do(f, cld_f, cf);
+  // 在VMThread中还会对队列进行标记
   _vm_queue->oops_do(f);
 }
 

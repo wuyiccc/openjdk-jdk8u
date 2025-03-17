@@ -462,6 +462,7 @@ bool SubTasksDone::is_task_claimed(uint t) {
   assert(0 <= t && t < _n_tasks, "bad task id.");
   uint old = _tasks[t];
   if (old == 0) {
+  // 所有扫描根类型的任务都对应着_tasks中的一个下标, 如果cas将对应的下标从0更改为1 则表示当前线程顺利获取扫描此根的任务, 函数将返回true
     old = Atomic::cmpxchg(1, &_tasks[t], 0);
   }
   bool res = old != 0;

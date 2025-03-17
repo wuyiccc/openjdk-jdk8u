@@ -139,7 +139,10 @@ void JNIHandles::destroy_weak_global(jobject handle) {
   }
 }
 
-
+// hotspot vm 中的本地代码指的是Hotspot VM内部的代码
+// 除此之外, 还有JNI代码也是本地代码, 对于非JNI代码的本地代码, 之前介绍过通过句柄引用oop,
+// 句柄存储在每个线程的HandleArea中, 在遍历每个线程的时候会看到. 在执行JNI代码的时候, 也有可能访问堆中的oop,
+// hotspot vm 也采用了句柄 机制, 称之为JNIHandle, 然后通过句柄访问具体的oop
 void JNIHandles::oops_do(OopClosure* f) {
   f->do_oop(&_deleted_handle);
   _global_handles->oops_do(f);
@@ -378,20 +381,24 @@ void JNIHandleBlock::oops_do(OopClosure* f) {
   // Iterate over chain of blocks, followed by chains linked through the
   // pop frame links.
   while (current_chain != NULL) {
+  // 遍历所有的JNIHandleBlock
     for (JNIHandleBlock* current = current_chain; current != NULL;
          current = current->_next) {
       assert(current == current_chain || current->pop_frame_link() == NULL,
         "only blocks first in chain should have pop frame link set");
+        // 遍历每个JNIHandleBlock中保存的通过句柄引用的oop
       for (int index = 0; index < current->_top; index++) {
         oop* root = &(current->_handles)[index];
         oop value = *root;
         // traverse heap pointers only, not deleted handles or free list
         // pointers
+        // 要判断value不为null, 并且oop是在堆中分配的内存
         if (value != NULL && Universe::heap()->is_in_reserved(value)) {
           f->do_oop(root);
         }
       }
       // the next handle block is valid only if current block is full
+      // 如果_top小于block_size_in_oops, 则说明当前是最后一个JNIHandleBlock块
       if (current->_top < block_size_in_oops) {
         break;
       }

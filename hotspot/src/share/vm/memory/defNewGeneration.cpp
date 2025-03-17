@@ -632,6 +632,11 @@ void DefNewGeneration::collect(bool   full,
   // Not very pretty.
   CollectorPolicy* cp = gch->collector_policy();
   // 初始化FastScanClosure, 此闭包封装了存活对象的标识和复制逻辑
+  // 主要是为_boundary变量赋值为年轻代的结束地址
+  // 这个地址对后续fastScanClosure::do_oop_work()函数非常重要
+  // 如果当前正在执行的是ygc, 那么只会涉及到根直接引用活跃对象的标记过程,
+  // 但是并不会标记所有的活跃对象, 而是只标记年轻代中的活跃对象, 也就是标记
+  // 小于_boundary地址的活跃对象
   FastScanClosure fsc_with_no_gc_barrier(this, false);
   FastScanClosure fsc_with_gc_barrier(this, true);
 
@@ -649,8 +654,9 @@ void DefNewGeneration::collect(bool   full,
   assert(gch->no_allocs_since_save_marks(0),
          "save marks have not been newly set.");
   // 将当前代上的根对象复制到转移空间 to survivor中
-  gch->gen_process_roots(_level,
-                         true,  // Process younger gens, if any,
+  // 标记强引用的根
+  gch->gen_process_roots(_level, // 执行ygc的时候, level为0
+                         true,  // Process younger gens, if any, // 将更年轻的代作为根来处理, 在使用serial/serial old收集器的时候此参数不起作用
                                 // as strong roots.
                          true,  // activate StrongRootsScope
                          GenCollectedHeap::SO_ScavengeCodeCache,
@@ -809,6 +815,7 @@ void DefNewGeneration::handle_promotion_failure(oop old) {
   }
   _promotion_failed = true;
   _promotion_failed_info.register_copy_failure(old->size());
+  // 保存原对象的对象头信息, 然后在对象头中设置转发指针指向自己
   preserve_mark_if_necessary(old, old->mark());
   // forward to self
   old->forward_to(old);
@@ -817,6 +824,7 @@ void DefNewGeneration::handle_promotion_failure(oop old) {
 
   if (!_promo_failure_drain_in_progress) {
     // prevent recursion in copy_to_survivor_space()
+    // 当前的对象晋升失败时, 当前对象所引用的对象仍然要进行标记扫描并进行复制操作
     _promo_failure_drain_in_progress = true;
     drain_promo_failure_scan_stack();
     _promo_failure_drain_in_progress = false;
@@ -830,13 +838,18 @@ oop DefNewGeneration::copy_to_survivor_space(oop old) {
   oop obj = NULL;
 
   // Try allocating obj in to-space (unless too old)
+  // 当对象的年龄没有达到晋升阈值的时候, 尝试将此对象移动到 to survivor空间
   if (old->age() < tenuring_threshold()) {
+  // 先分配内存
     obj = (oop) to()->allocate_aligned(s);
   }
 
   // Otherwise try allocating obj tenured
+  // 当obj为null的时候, 表示在 to survivor空间分配内存不成功, 或者可能是对象达到了晋升阈值, 而没有在to survivor空间分配内存,
+  // 此时需要晋升对象到老年代
   if (obj == NULL) {
     obj = _next_gen->promote(old, s);
+    // 对象晋升到老年代失败, 设置_promotion_failed标记为true, 当此值为true的时候会触发fgc
     if (obj == NULL) {
       handle_promotion_failure(old);
       return old;
@@ -847,14 +860,17 @@ oop DefNewGeneration::copy_to_survivor_space(oop old) {
     Prefetch::write(obj, interval);
 
     // Copy obj
+    // 将原对象的数据内容复制到to survivor空间
     Copy::aligned_disjoint_words((HeapWord*)old, (HeapWord*)obj, s);
 
     // Increment age if obj still in new generation
+    // 增加新对象的age并更新ageTable中的sizes变量的值
     obj->incr_age();
     age_table()->add(obj, s);
   }
 
   // Done, insert forward pointer to obj in this header
+  // 新对象的位置
   old->forward_to(obj);
 
   return obj;
@@ -863,6 +879,7 @@ oop DefNewGeneration::copy_to_survivor_space(oop old) {
 void DefNewGeneration::drain_promo_failure_scan_stack() {
   while (!_promo_failure_scan_stack.is_empty()) {
      oop obj = _promo_failure_scan_stack.pop();
+     // 调用oopDesc::oop_iterate()函数处理obj对象引用的其他对象
      obj->oop_iterate(_promo_failure_scan_stack_closure);
   }
 }

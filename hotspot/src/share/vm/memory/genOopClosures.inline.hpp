@@ -106,12 +106,18 @@ inline void ScanClosure::do_oop_nv(narrowOop* p) { ScanClosure::do_oop_work(p); 
 // NOTE! Any changes made here should also be made
 // in ScanClosure::do_oop_work()
 template <class T> inline void FastScanClosure::do_oop_work(T* p) {
+// 调用函数load_heap_oop()执行*p操作, 获取T类型的值, T为oopDesc*类型
   T heap_oop = oopDesc::load_heap_oop(p);
   // Should we copy the obj?
   if (!oopDesc::is_null(heap_oop)) {
     oop obj = oopDesc::decode_heap_oop_not_null(heap_oop);
     if ((HeapWord*)obj < _boundary) {
       assert(!_g->to()->is_in_reserved(obj), "Scanning field twice?");
+      // 检查markOop中类型是否处于marked模式(二进制位标识为11), 即活跃对象标记,
+      // 如果已经设置, 说明对象已经移动到to survivor空间或者老年代空间, 只需要更新引用即可
+      // 当前对象没有GC标记, 并且遍历根执行到以下代码位置的时候, 说明当前对象活跃, 需要复制活跃对象到to survivor空间
+      // 或者老年代空间, 然后在旧的对象上markOop设置gc标和转发指针, 更新引用到最新的对象
+      // 最后让new_obj指向最新的对象
       oop new_obj = obj->is_forwarded() ? obj->forwardee()
                                         : _g->copy_to_survivor_space(obj);
       oopDesc::encode_store_heap_oop_not_null(p, new_obj);

@@ -712,6 +712,7 @@ inline void oopDesc::incr_age() {
   if (has_displaced_mark()) {
     set_displaced_mark(displaced_mark()->incr_age());
   } else {
+  // age最大值为15
     set_mark(mark()->incr_age());
   }
 }

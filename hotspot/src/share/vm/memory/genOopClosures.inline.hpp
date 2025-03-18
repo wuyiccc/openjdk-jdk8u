@@ -56,6 +56,7 @@ template <class T> inline void OopsInGenClosure::do_barrier(T* p) {
   assert(!oopDesc::is_null(heap_oop), "expected non-null oop");
   oop obj = oopDesc::decode_heap_oop_not_null(heap_oop);
   // If p points to a younger generation, mark the card.
+  // _gen_boundary 对于老年代来说, 是老年代的开始地址, 年轻代的结束地址
   if ((HeapWord*)obj < _gen_boundary) {
     _rs->inline_write_ref_field_gc(p, obj);
   }

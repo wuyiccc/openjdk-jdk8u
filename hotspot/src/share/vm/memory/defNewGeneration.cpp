@@ -638,6 +638,10 @@ void DefNewGeneration::collect(bool   full,
   // 但是并不会标记所有的活跃对象, 而是只标记年轻代中的活跃对象, 也就是标记
   // 小于_boundary地址的活跃对象
   FastScanClosure fsc_with_no_gc_barrier(this, false);
+  // 这里gc_barrier是true, 代表后面扫描老年代对象如果有字段引用年轻代对象, 那么需要设置为脏表
+  /**
+  FastScanClosure::do_oop_work 中  do_barrier(p); 只有在gc_barrier为true的时候才会执行
+  **/
   FastScanClosure fsc_with_gc_barrier(this, true);
 
   KlassScanClosure klass_scan_closure(&fsc_with_no_gc_barrier,

@@ -2363,7 +2363,7 @@ void InstanceKlass::oop_follow_contents(ParCompactionManager* cm,
 
 // closure's do_metadata() method dictates whether the given closure should be
 // applied to the klass ptr in the object header.
-
+// oop_iterate()函数遍历每个对象引用的其他对象, 根据oopppMap遍历对象中的每个引用
 #define InstanceKlass_OOP_OOP_ITERATE_DEFN(OopClosureType, nv_suffix)        \
                                                                              \
 int InstanceKlass::oop_oop_iterate##nv_suffix(oop obj, OopClosureType* closure) { \

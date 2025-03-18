@@ -120,7 +120,9 @@ public:
   void younger_refs_iterate(Generation* g, OopsInGenClosure* blk);
 
   void inline_write_ref_field_gc(void* field, oop new_val) {
+  // 获取当前内存地址对应的卡表字节
     jbyte* byte = _ct_bs->byte_for(field);
+    // 将卡表项设置为youngergen_card标记为该区域持有年代代对象的引用
     *byte = youngergen_card;
   }
   void write_ref_field_gc_work(void* field, oop new_val) {

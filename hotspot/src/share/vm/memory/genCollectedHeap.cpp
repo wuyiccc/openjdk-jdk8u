@@ -821,6 +821,21 @@ oop_since_save_marks_iterate(int level,                                 \
 
 ALL_SINCE_SAVE_MARKS_CLOSURES(GCH_SINCE_SAVE_MARKS_ITERATE_DEFN)
 
+// 上面这个宏定义可以替换为下面这几行宏定义代码
+//GCH_SINCE_SAVE_MARKS_ITERATE_DEFN(OopsInGenClosure, _v)
+//SPECIALIZED_SINCE_SAVE_MARKS_CLOSURES_YOUNG_P(GCH_SINCE_SAVE_MARKS_ITERATE_DEFN)
+//GCH_SINCE_SAVE_MARKS_ITERATE_DEFN(ScanClosure, _nv)
+//GCH_SINCE_SAVE_MARKS_ITERATE_DEFN(FastScanClosure, _nv)
+// 上面这个宏定义可以替换为下面这个代码
+//void GenCollectedHeap::
+//oop_since_save_marks_iterate(int level, FastScanClosure* cur, FastScanClosure* older) {
+//    _gens[level]->oop_since_save_marks_iterate_nv(cur);
+//    for (int i = level + 1; i < n_gens(); i++) {
+//        _gens[i]->oop_since_save_marks_iterate_nv(older);
+//    }
+//}
+//
+
 #undef GCH_SINCE_SAVE_MARKS_ITERATE_DEFN
 
 bool GenCollectedHeap::no_allocs_since_save_marks(int level) {

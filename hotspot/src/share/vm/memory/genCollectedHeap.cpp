@@ -428,7 +428,7 @@ void GenCollectedHeap::do_collection(bool  full,
       // 这个逻辑主要是计算starting_level属性的值, 这样_gens[0]到_gens[starting_level]所代表的内存代就会由
       // 本次gc负责回收
       // 对于serial/serial old 收集器组合来说, 新生代用DefNewGeneration实例表示, 当进行fgc的时候
-      // max_level为1, 而最终starting_level的值也未1, 也就是fgc同时回收年轻代和老年代
+      // max_level为1, 而最终starting_level的值也为1, 也就是fgc同时回收年轻代和老年代
       for (int i = max_level; i >= 0; i--) {
       // 老年代调用返回true
       // 对于年轻代来说返回false
@@ -440,7 +440,7 @@ void GenCollectedHeap::do_collection(bool  full,
     }
 
     bool must_restore_marks_for_biased_locking = false;
-    // 对于ygc来说, staring_level的值为0, 对于fgc来说, staring_level的值为1
+    // 对于ygc来说, staring_level的值为0(由于full=false,直接采用的starting_level的初始值), 对于fgc来说, staring_level的值为1
     // 如果是ygc, max_level=1, 优先执行gen[0]内存代的回收, 如果回收之后仍然不满足, 则触发此次ygc操作的内存分配请求
     // 那么还会对gen[1]进行回收, 此时执行的就是fgc
     int max_level_collected = starting_level;
@@ -966,11 +966,11 @@ void GenCollectedHeap::do_full_collection(bool clear_all_soft_refs) {
 
 void GenCollectedHeap::do_full_collection(bool clear_all_soft_refs,
                                           int max_level) {
-
+  // do_collection根据full标识决定执行是fgc 还是 ygc
   do_collection(true                 /* full */,
                 clear_all_soft_refs  /* clear_all_soft_refs */,
                 0                    /* size */,
-                false                /* is_tlab */,
+                false                /* is_tlab */, /*是否是在分配新的tlab的时候触发了gc*/
                 max_level            /* max_level */);
   // Hack XXX FIX ME !!!
   // A scavenge may not have been attempted, or may have

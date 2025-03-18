@@ -221,7 +221,7 @@ void VM_GenCollectFull::doit() {
 
   GenCollectedHeap* gch = GenCollectedHeap::heap();
   GCCauseSetter gccs(gch, _gc_cause);
-  // 实现fullgc
+  // 实现fullgc, _max_level的值为1, 年轻代为0, 老年代为1
   gch->do_full_collection(gch->must_clear_all_soft_refs(), _max_level);
 }
 

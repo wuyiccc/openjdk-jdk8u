@@ -90,17 +90,17 @@ void GenMarkSweep::invoke_at_safepoint(int level, ReferenceProcessor* rp, bool c
   gch->save_used_regions(level);
 
   allocate_stacks();
-
+  // 标记所有的活跃对象
   mark_sweep_phase1(level, clear_all_softrefs);
-
+  // 计算所有活跃对象在压缩后的偏移地址
   mark_sweep_phase2();
 
   // Don't add any more derived pointers during phase3
   COMPILER2_PRESENT(assert(DerivedPointerTable::is_active(), "Sanity"));
   COMPILER2_PRESENT(DerivedPointerTable::set_active(false));
-
+  // 更新对象的引用地址
   mark_sweep_phase3(level);
-
+  // 移动所有活跃对象到新的位置
   mark_sweep_phase4();
 
   restore_marks();

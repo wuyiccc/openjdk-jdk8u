@@ -145,11 +145,14 @@ void ClassLoaderData::oops_do(OopClosure* f, KlassClosure* klass_closure, bool m
   if (must_claim && !claim()) {
     return;
   }
-
+  // 标记java.lang.ClassLoader对象
   f->do_oop(&_class_loader);
+  // 标记依赖的加载器对象
   _dependencies.oops_do(f);
+  // 调用JNIHandleBlock::oops_do()函数标记JNI函数引用的活跃对象
   _handles.oops_do(f);
   if (klass_closure != NULL) {
+  // 标记类加载器加载的所有类
     classes_do(klass_closure);
   }
 }

@@ -151,9 +151,12 @@ template <class T> void assert_nothing(T *p) {}
 
 
 void InstanceMirrorKlass::oop_follow_contents(oop obj) {
+// 标记obj中引用的其他对象
   InstanceKlass::oop_follow_contents(obj);
 
   // Follow the klass field in the mirror.
+  // obj是java.lang.Class对象, 获取java.lang.Class对象表示的Klass实例
+  // 比如 obj表示的是String.class, 那么这里获取的就是String对应的klass, 而不是InstanceMirrorKlass
   Klass* klass = java_lang_Class::as_Klass(obj);
   if (klass != NULL) {
     // An anonymous class doesn't have its own class loader, so the call
@@ -164,6 +167,7 @@ void InstanceMirrorKlass::oop_follow_contents(oop obj) {
     // the call to follow_class_loader is made when the class loader itself
     // is handled.
     if (klass->oop_is_instance() && InstanceKlass::cast(klass)->is_anonymous()) {
+    // 获取加载类的java.lang.ClassLoader对象, 标记并压入栈
       MarkSweep::follow_class_loader(klass->class_loader_data());
     } else {
       MarkSweep::follow_klass(klass);
@@ -172,9 +176,12 @@ void InstanceMirrorKlass::oop_follow_contents(oop obj) {
     // If klass is NULL then this a mirror for a primitive type.
     // We don't have to follow them, since they are handled as strong
     // roots in Universe::oops_do.
+    // 如果获取的klass为null, 说明当前的java.lang.Class对象表示的是java的基本类型,
+    // 我们不再需要标记, 因为在遍历强根的时候会调用Universe::oops_do() 函数处理
     assert(java_lang_Class::is_primitive(obj), "Sanity check");
   }
-
+  // 遍历java.lang.Class对象中存储的静态变量并进行标记
+  // ps: 在InstanceKlass中标记了对应的实例字段, 这里标记对应的静态字段
   InstanceMirrorKlass_OOP_ITERATE(                                                    \
     start_of_static_fields(obj), java_lang_Class::static_oop_field_count(obj),        \
     MarkSweep::mark_and_push(p),                                                      \

@@ -645,6 +645,7 @@ inline bool oopDesc::is_unlocked_oop() const {
 
 inline void oopDesc::follow_contents(void) {
   assert (is_gc_marked(), "should be marked");
+  // 获取当前对象对应的klass, 只有通过类才能确定当前对象哪些部分保存的内容是对其他对象的引用
   klass()->oop_follow_contents(this);
 }
 

@@ -2340,6 +2340,7 @@ template <class T> void assert_nothing(T *p) {}
 
 void InstanceKlass::oop_follow_contents(oop obj) {
   assert(obj != NULL, "can't follow the content of NULL object");
+  // 标记加载当前类的类加载器对象并压入栈
   MarkSweep::follow_klass(obj->klass());
   InstanceKlass_OOP_MAP_ITERATE( \
     obj, \

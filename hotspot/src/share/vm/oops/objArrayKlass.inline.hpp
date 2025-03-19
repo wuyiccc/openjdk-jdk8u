@@ -55,10 +55,12 @@ void ObjArrayKlass::objarray_follow_contents(oop obj, int index) {
   T* const end = base + end_index;
 
   // Push the non-NULL elements of the next stride on the marking stack.
+  // 每次只处理ObjArrayMarkingStride个元素
   for (T* e = beg; e < end; e++) {
     MarkSweep::mark_and_push<T>(e);
   }
-
+  // 由于objArrayOop数组可能会含有很多元素, 为了避免一次向栈中压入过多的对象, 每次只压入ObjArrayMarkingStride个元素
+  // 其余未处理的元素会调用MarkSweep::push_objarray函数暂时存储在_objarray_stack中
   if (end_index < len) {
     MarkSweep::push_objarray(a, end_index); // Push the continuation.
   }

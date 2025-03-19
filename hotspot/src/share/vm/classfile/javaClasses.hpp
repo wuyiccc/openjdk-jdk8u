@@ -230,7 +230,7 @@ class java_lang_Class : AllStatic {
 
  private:
   // The fake offsets are added by the class loader when java.lang.Class is loaded
-
+  // 存储对应的Klass实例 比如表示的是String.class, 那么这里存储的是String的InstanceKlass实例信息
   static int _klass_offset;
   static int _array_klass_offset;
 

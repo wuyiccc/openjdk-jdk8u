@@ -47,12 +47,16 @@ typedef GenericTaskQueueSet<OopTaskQueue, mtGC> OopTaskQueueSet;
 
 class OopsInGenClosure : public ExtendedOopClosure {
  private:
+  // 保存之前_gen变量的值
   Generation*  _orig_gen;     // generation originally set in ctor
+  // 会被扫描的代, 也就是扫描这个代中包含的对象并处理
   Generation*  _gen;          // generation being scanned
 
  protected:
   // Some subtypes need access.
+  // 代的开始地址
   HeapWord*    _gen_boundary; // start of generation
+  // 卡表
   CardTableRS* _rs;           // remembered set
 
   // For assertions

@@ -44,10 +44,12 @@ inline void MarkSweep::mark_object(oop obj) {
 #endif
   // some marks may contain information we need to preserve so we store them away
   // and overwrite the mark.  We'll restore it at the end of markSweep.
+  // 对活跃对象进行标记, 就是修改对象头标记为11
   markOop mark = obj->mark();
   obj->set_mark(markOopDesc::prototype()->set_marked());
 
   if (mark->must_be_preserved(obj)) {
+  // 保存原来的markOop, 调用preserve_mark保存对象和对应的对象头
     preserve_mark(obj, mark);
   }
 }
@@ -60,19 +62,24 @@ inline void MarkSweep::follow_klass(Klass* klass) {
 template <class T> inline void MarkSweep::follow_root(T* p) {
   assert(!Universe::heap()->is_in_reserved(p),
          "roots shouldn't be things within the heap");
+  // 这里泛型是oop, 也就是oopDesc*
   T heap_oop = oopDesc::load_heap_oop(p);
+  // 判断oopDesc*是否为null
   if (!oopDesc::is_null(heap_oop)) {
     oop obj = oopDesc::decode_heap_oop_not_null(heap_oop);
     if (!obj->mark()->is_marked()) {
+    // 标记对象, 设置对象头
       mark_object(obj);
+      // follow_contents()函数将当前活跃的对象所引用的对象标记并压入栈
       obj->follow_contents();
     }
   }
   follow_stack();
 }
-
+// 标记对象并压入栈中
 template <class T> inline void MarkSweep::mark_and_push(T* p) {
 //  assert(Universe::heap()->is_in_reserved(p), "should be in object space");
+// T是oopDesc类型, 也就是oop*类型
   T heap_oop = oopDesc::load_heap_oop(p);
   if (!oopDesc::is_null(heap_oop)) {
     oop obj = oopDesc::decode_heap_oop_not_null(heap_oop);

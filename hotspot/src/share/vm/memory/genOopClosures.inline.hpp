@@ -43,6 +43,7 @@ inline void OopsInGenClosure::set_generation(Generation* gen) {
   _gen = gen;
   _gen_boundary = _gen->reserved().start();
   // Barrier set for the heap, must be set after heap is initialized
+  // 要保证老年代中有对应的卡表, 以方便在必要的时候记录卡页的信息
   if (_rs == NULL) {
     GenRemSet* rs = SharedHeap::heap()->rem_set();
     assert(rs->rs_kind() == GenRemSet::CardTable, "Wrong rem set kind");

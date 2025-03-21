@@ -1254,10 +1254,12 @@ GenCollectedHeap* GenCollectedHeap::heap() {
 
 void GenCollectedHeap::prepare_for_compaction() {
   guarantee(_n_gens == 2, "Wrong number of generations");
+  // 对老年代进行整理, 计算整理压缩后的地址
   Generation* old_gen = _gens[1];
   // Start by compacting into same gen.
   CompactPoint cp(old_gen);
   old_gen->prepare_for_compaction(&cp);
+  // 对年轻代进行整理, 计算整理压缩后的地址
   Generation* young_gen = _gens[0];
   young_gen->prepare_for_compaction(&cp);
 }

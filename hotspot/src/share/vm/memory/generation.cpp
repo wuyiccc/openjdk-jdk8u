@@ -354,6 +354,10 @@ void Generation::safe_object_iterate(ObjectClosure* cl) {
 
 void Generation::prepare_for_compaction(CompactPoint* cp) {
   // Generic implementation, can be specialized
+  // 年轻代DefNewGeneration分为eden(edenSpace), from survivor, to survivor(ContiguousSpace类型),
+  // 对应fgc来说, eden->from survivor -> to survivor 因为ygc失败之后, to survivor(也存在活跃对象)会和from survivor连接在一起
+  // 正常情况下 from survivor -> null
+  // 老年代TenuredGeneration只有一个区(TenuredSpace)
   CompactibleSpace* space = first_compaction_space();
   while (space != NULL) {
     space->prepare_for_compaction(cp);

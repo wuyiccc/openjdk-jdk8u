@@ -455,21 +455,28 @@ CollectedHeap::fill_with_array(HeapWord* start, size_t words, bool zap)
 
   // Set the length first for concurrent GC.
   ((arrayOop)start)->set_length((int)len);
+  // 调用Universe::intArrayKlassObj()函数获取_intArrayKlassObj, 即获取表示int类型的一维数组类型,
+  // 在Universe::genesis()函数中调用TypeArrayKlass::create_klass()函数创建这个表示int类型的一维数组
   post_allocation_setup_common(Universe::intArrayKlassObj(), start);
   DEBUG_ONLY(zap_filler_array(start, words, zap);)
 }
 // 为了让tlab保持一种可解析的状态, 向剩余的空闲内存中填充对象, 这样内存看起来是连续的
 // 不会留下空白, 这在扫描内存, 查找对象的时候十分重要, 如果两个对象之间有空白, 那么在查找完第一个对象之后
 // 只能逐个字节的检查下一个对象的起始地址, 这样既耗时又不能保证准确率, 因此会调用fill_with_object()函数填充Object对象或者数组
+
+// 填充int数组或者object对象, 这两个对象对应的TypeArrayKlass和InstanceKlass实例没有OopMapBlock信息,
+// 所以不会对其他对象造成引用干扰. 另外数组因为有长度, 所以填充起来灵活性比较大
 void
 CollectedHeap::fill_with_object_impl(HeapWord* start, size_t words, bool zap)
 {
   assert(words <= filler_array_max_size(), "too big for a single object");
-
+  // 调用filler_array_min_size获取int数组占用的最小字数
+  // markOop加上length对齐后为3个字
   if (words >= filler_array_min_size()) {
     fill_with_array(start, words, zap);
   } else if (words > 0) {
     assert(words == min_fill_size(), "unaligned size");
+    // 由于Object类没有声明任务实例遍历, 所以Object对象的容量就是Object对象头的容量, 为2个字
     post_allocation_setup_common(SystemDictionary::Object_klass(), start);
   }
 }

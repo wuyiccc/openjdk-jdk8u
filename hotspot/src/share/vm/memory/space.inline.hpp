@@ -39,13 +39,20 @@ inline HeapWord* Space::block_start(const void* p) {
   /* Compute the new addresses for the live objects and store it in the mark \
    * Used by universe::mark_sweep_phase2()                                   \
    */                                                                        \
+   /*                                                                        \
+   压缩指针, 在此之前的对象都已经完成了整理压缩, 下一个活跃对象需要移动到compact_top指向的地址 \
+   */                                                                        \
   HeapWord* compact_top; /* This is where we are currently compacting to. */ \
                                                                              \
   /* We're sure to be here before any objects are compacted into this        \
    * space, so this is a good time to initialize this:                       \
    */                                                                        \
+   /*初始化CompactibleSpace::_compaction_top属性的值为Space::_bottom属性的值*/\
   set_compaction_top(bottom());                                              \
-                                                                             \
+  /* 初始化CompactPoint, 如果CompactPoint的压缩区域为空, 即这是内存代第一片区域,那么初始化CompactPoint的压缩区域为内存代的第一片区域  */                                                                           \
+  /* 初始化压缩指针为区域的起始地址, 初始化区域的压缩的目标区域起始地址为该区域的起始地址  */ \
+  /* 初始化压缩边界为区域边界(默认实现)  */ \
+  /* 如果CompactPoint不为空, 那么之前继续进行该区域的压缩工作, 即初始化压缩指针为原压缩指针的值  */ \
   if (cp->space == NULL) {                                                   \
     assert(cp->gen != NULL, "need a generation");                            \
     assert(cp->threshold == NULL, "just checking");                          \
@@ -63,11 +70,13 @@ inline HeapWord* Space::block_start(const void* p) {
    * Occasionally, we want to ensure a full compaction, which is determined  \
    * by the MarkSweepAlwaysCompactCount parameter.                           \
    */                                                                        \
+   /* 有时候允许空间中存在一些未标记的死亡对象, 这样可以避免一些不必要的移动, 进行MarkSweepAlwaysCompactCount(默认值为4)此fgc后会有一次完全压缩*/  \
   uint invocations = MarkSweep::total_invocations();                         \
   bool skip_dead = ((invocations % MarkSweepAlwaysCompactCount) != 0);       \
                                                                              \
   size_t allowed_deadspace = 0;                                              \
   if (skip_dead) {                                                           \
+  /* 获取MarkSweepDeadRatio的值,默认为5, 最终允许死亡对象占用的空间为当前空间总容量的5% */ \
     const size_t ratio = allowed_dead_ratio();                               \
     allowed_deadspace = (capacity() * ratio / 100) / HeapWordSize;           \
   }                                                                          \
@@ -98,18 +107,25 @@ inline HeapWord* Space::block_start(const void* p) {
       end_of_live = q;                                                       \
     } else {                                                                 \
       /* run over all the contiguous dead objects */                         \
+      /*查找连续的死亡对象并跳过*/\
       HeapWord* end = q;                                                     \
       do {                                                                   \
         /* prefetch beyond end */                                            \
         Prefetch::write(end, interval);                                      \
+        /* 这个循环改变end变量的值 */\
         end += block_size(end);                                              \
       } while (end < t && (!block_is_obj(end) || !oop(end)->is_gc_marked()));\
                                                                              \
       /* see if we might want to pretend this object is alive so that        \
        * we don't have to compact quite as often.                            \
        */                                                                    \
+       /* 逻辑执行到这里的时候, end可能指向t或者一个被标记为活跃对象的开始地址 */\
+       /* 只有允许死亡对象存在并且死亡对象不需要移动到压缩地址, 才能够省略移动对象带来的性能损失 */\
       if (allowed_deadspace > 0 && q == compact_top) {                       \
+      /* 计算出连续死亡对象的总容量 */\
         size_t sz = pointer_delta(end, q);                                   \
+        /* 将连续死亡对象合为一个对象并对此对象进行标记, insert_deadspace()函数 */\
+        /* 如果返回true, 表示标记成功, 否则需要对死亡对象代表的空闲空间进行处理 */\
         if (insert_deadspace(allowed_deadspace, q, sz)) {                    \
           compact_top = cp->space->forward(oop(q), sz, cp, compact_top);     \
           q = end;                                                           \
@@ -121,6 +137,7 @@ inline HeapWord* Space::block_start(const void* p) {
       /* otherwise, it really is a free region. */                           \
                                                                              \
       /* for the previous LiveRange, record the end of the live objects. */  \
+      /* 更新上一个LiveRange的活跃对象结束地址, 这个活跃范围设置在死亡对象的markWord上 */\
       if (liveRange) {                                                       \
         liveRange->set_end(q);                                               \
       }                                                                      \
@@ -128,6 +145,8 @@ inline HeapWord* Space::block_start(const void* p) {
       /* record the current LiveRange object.                                \
        * liveRange->start() is overlaid on the mark word.                    \
        */                                                                    \
+       /* 由于在死亡对象后遇到了一个新的活跃对象, 于是需要重新构造一个LiveRange对象来记录 */\
+       /* 下一片活跃对象的地址范围 */\
       liveRange = (LiveRange*)q;                                             \
       liveRange->set_start(end);                                             \
       liveRange->set_end(end);                                               \
@@ -140,6 +159,7 @@ inline HeapWord* Space::block_start(const void* p) {
       /* move on to the next object */                                       \
       q = end;                                                               \
     }                                                                        \
+    /* 结束while循环 */\
   }                                                                          \
                                                                              \
   assert(q == t, "just checking");                                           \
@@ -153,6 +173,7 @@ inline HeapWord* Space::block_start(const void* p) {
   _first_dead = first_dead;                                                  \
                                                                              \
   /* save the compaction_top of the compaction space. */                     \
+  /* 保存compact_top的值 */\
   cp->space->set_compaction_top(compact_top);                                \
 }
 

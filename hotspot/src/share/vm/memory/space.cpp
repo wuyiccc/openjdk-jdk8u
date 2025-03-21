@@ -386,11 +386,15 @@ HeapWord* CompactibleSpace::forward(oop q, size_t size,
   // First check if we should switch compaction space
   assert(this == cp->space, "'this' should be current compaction space.");
   size_t compaction_max_size = pointer_delta(end(), compact_top);
+  // 在压缩过程中可能由于活跃对象比较多, 当前空间不够容纳所有对象, 此时可以查找下一个压缩空间,
+  // 如果所有的压缩空间还不能够容纳, 则下一个要查找的是更年轻的代
+  // 知道找到能容纳压缩对象的空间为止
   while (size > compaction_max_size) {
     // switch to next compaction space
     cp->space->set_compaction_top(compact_top);
     cp->space = cp->space->next_compaction_space();
     if (cp->space == NULL) {
+    // 查找比当前代更年轻的代
       cp->gen = GenCollectedHeap::heap()->prev_gen(cp->gen);
       assert(cp->gen != NULL, "compaction must succeed");
       cp->space = cp->gen->first_compaction_space();
@@ -403,12 +407,17 @@ HeapWord* CompactibleSpace::forward(oop q, size_t size,
   }
 
   // store the forwarding pointer into the mark word
+  // 当q不等于compact_top的时候, 表示对象需要移动, 在对象头中存储转发指针compact_top
   if ((HeapWord*)q != compact_top) {
+  // 在对象头中存储转发指针, 同时笔记该对象(转发之后的对象)为活跃
+  // 我们不需要考虑原对象头中的有用信息, 因为在标记活跃对象阶段已经将需要存储的对象头存储在了
+  // _preserved_marks和_preserved_mark_stack中
     q->forward_to(oop(compact_top));
     assert(q->is_gc_marked(), "encoding the pointer should preserve the mark");
   } else {
     // if the object isn't moving we can just set the mark to the default
     // mark and handle it specially later on.
+    // 对象不需要移动
     q->init_mark();
     assert(q->forwardee() == NULL, "should be forwarded to NULL");
   }
@@ -418,6 +427,7 @@ HeapWord* CompactibleSpace::forward(oop q, size_t size,
   // we need to update the offset table so that the beginnings of objects can be
   // found during scavenge.  Note that we are updating the offset table based on
   // where the object will be once the compaction phase finishes.
+  // 压缩每个对象的同时需要更新对应的偏移表
   if (compact_top > cp->threshold)
     cp->threshold =
       cp->space->cross_threshold(compact_top - size, compact_top);
@@ -429,12 +439,15 @@ bool CompactibleSpace::insert_deadspace(size_t& allowed_deadspace_words,
                                         HeapWord* q, size_t deadlength) {
   if (allowed_deadspace_words >= deadlength) {
     allowed_deadspace_words -= deadlength;
+    // 向deadlength个字大小的空间中填充一个对象, 可能是int数组或者object对象, 同时设置对象已经被标记,
+    // 这有利于mark_sweep_phase3()函数更新对象的引用地址
     CollectedHeap::fill_with_object(q, deadlength);
     oop(q)->set_mark(oop(q)->mark()->set_marked());
     assert((int) deadlength == oop(q)->size(), "bad filler object size");
     // Recall that we required "q == compaction_top".
     return true;
   } else {
+  // 不允许连续死亡对象的存在
     allowed_deadspace_words = 0;
     return false;
   }

@@ -241,9 +241,11 @@ ReferenceProcessorStats ReferenceProcessor::process_discovered_references(
   update_soft_ref_master_clock();
 
   // Weak references
+  // 处理弱引用
   size_t weak_count = 0;
   {
     GCTraceTime tt("WeakReference", trace_time, false, gc_timer, gc_id);
+    // 与处理软引用不同的是, 这里引用策略为NULL, 那这样软引用中之前满足保留策略的对象, 在弱引用中就会被移除
     weak_count =
       process_discovered_reflist(_discoveredWeakRefs, NULL, true,
                                  is_alive, keep_alive, complete_gc, task_executor);

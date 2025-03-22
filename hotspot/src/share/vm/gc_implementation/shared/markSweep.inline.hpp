@@ -95,8 +95,9 @@ void MarkSweep::push_objarray(oop obj, size_t index) {
   assert(task.is_valid(), "bad ObjArrayTask");
   _objarray_stack.push(task);
 }
-
+// 解析对象的的markOop, 若该对象已经被标记, 将引用地址引用的原对象更新为转发指针指向的新对象
 template <class T> inline void MarkSweep::adjust_pointer(T* p) {
+  // T是oopDesc*类型, p是oopDesc**类型
   T heap_oop = oopDesc::load_heap_oop(p);
   if (!oopDesc::is_null(heap_oop)) {
     oop obj     = oopDesc::decode_heap_oop_not_null(heap_oop);
@@ -106,9 +107,11 @@ template <class T> inline void MarkSweep::adjust_pointer(T* p) {
            (UseBiasedLocking && obj->mark()->has_bias_pattern()),
                                                       // not gc marked?
            "should be forwarded");
+    // 只有设置转发指针的时候, 对象的引用地址才需要更新
     if (new_obj != NULL) {
       assert(Universe::heap()->is_in_reserved(new_obj),
              "should be in object space");
+      // 执行*p=new_obj操作
       oopDesc::encode_store_heap_oop_not_null(p, new_obj);
     }
   }

@@ -135,6 +135,7 @@ class MarkSweep : AllStatic {
   static MarkAndPushClosure   mark_and_push_closure;
   static FollowStackClosure   follow_stack_closure;
   static CLDToOopClosure      follow_cld_closure;
+  // 封装了调整对象引用地址的函数
   static AdjustPointerClosure adjust_pointer_closure;
   static CLDToOopClosure      adjust_cld_closure;
 

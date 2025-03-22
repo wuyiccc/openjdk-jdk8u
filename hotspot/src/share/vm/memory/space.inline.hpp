@@ -186,6 +186,8 @@ inline HeapWord* Space::block_start(const void* p) {
                                                                                 \
   assert(_first_dead <= _end_of_live, "Stands to reason, no?");                 \
                                                                                 \
+  /* 如下if语句判断条件如果满足, 则说明当前的压缩空间中有一块连续的内存不需要移动, 这块连续的 */ \
+  /* 这块连续的内存空间中可能同时包含有死亡对象和标记为活跃的对象 */\
   if (q < t && _first_dead > q &&                                               \
       !oop(q)->is_gc_marked()) {                                                \
     /* we have a chunk of the space which hasn't moved and we've                \
@@ -221,6 +223,7 @@ inline HeapWord* Space::block_start(const void* p) {
   const intx interval = PrefetchScanIntervalInBytes;                            \
                                                                                 \
   debug_only(HeapWord* prev_q = NULL);                                          \
+  /* 当q小于t的时候, 表明还有活跃对象需要进行移动, 继续调整这一部分 */\
   while (q < t) {                                                               \
     /* prefetch beyond q */                                                     \
     Prefetch::write(q, interval);                                               \

@@ -115,10 +115,12 @@ void MarkSweep::adjust_marks() {
          "inconsistent preserved oop stacks");
 
   // adjust the oops we saved earlier
+  // 这里之前将需要回复的对象头信息保存到了_preserved_marks数组中, 但是在preserved_marks中引用的obj对象的时候
+  // obj还是移动之前的对象, 这里需要将obj修改为移动之后的对象地址
   for (size_t i = 0; i < _preserved_count; i++) {
     _preserved_marks[i].adjust_pointer();
   }
-
+  // 对应的_preserved_oop_stack中保存的旧对象地址也要做出相应的变更
   // deal with the overflow stack
   StackIterator<oop, mtGC> iter(_preserved_oop_stack);
   while (!iter.is_empty()) {

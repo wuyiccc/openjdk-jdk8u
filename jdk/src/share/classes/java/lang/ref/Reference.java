@@ -38,7 +38,14 @@ import sun.misc.SharedSecrets;
  * @author   Mark Reinhold
  * @since    1.2
  */
-
+/**
+java引用类型有四种状态, 这四种状态在Reference类中并没有明确的字段标识, 而是通过queue和next两个字段来进行区分的:
+1. Active: Active与其他三个状态的区别就是next为null, 如果说实例注册了引用队列, 那么queue=ReferenceQueue,
+如果说实例没有注册引用队列, 那么queue=ReferenceQueue.NULL
+2. Pending: next=this, 处于这个状态下的实例肯定注册了引用队列, queue=ReferenceQueue
+3. Enqueued: next=this, 或者next指向队列中下一个元素, 处在这个状态下的实例肯定注册了引用队列, queue=ReferenceQueue.ENQUEUED,
+4. Inactive: next=this, queue=ReferenceQueue.NULL
+**/
 public abstract class Reference<T> {
 
     /* A Reference instance is in one of four possible internal states:
@@ -89,8 +96,9 @@ public abstract class Reference<T> {
      * field is also used for linking Reference objects in the pending list.
      */
 
+    // referent表示被引用的对象, 注意与表示引用对象的reference区分
     private T referent;         /* Treated specially by GC */
-
+    // 回收队列, 由程序员在Reference的构造函数中指定
     volatile ReferenceQueue<? super T> queue;
 
     /* When active:   NULL
@@ -99,12 +107,15 @@ public abstract class Reference<T> {
      *    Inactive:   this
      */
     @SuppressWarnings("rawtypes")
+    // 当前引用对象被加入queue中的时候, 该字段被设置为queue中的下一个元素, 以形成链表结构
     volatile Reference next;
 
     /* When active:   next element in a discovered reference list maintained by GC (or this if last)
      *     pending:   next element in the pending list (or null if last)
      *   otherwise:   NULL
      */
+    //  在执行gc的时候, hotspot vm底层会维护一个叫做DiscoveredList的链表, 存放的是Reference对象
+    // discovered字段指向的就是链表的下一个元素, 由hotspot vm 设置
     transient private Reference<T> discovered;  /* used by VM */
 
 
@@ -114,6 +125,7 @@ public abstract class Reference<T> {
      * as possible, allocate no new objects, and avoid calling user code.
      */
     static private class Lock { }
+    // 创建线程同步锁对象
     private static Lock lock = new Lock();
 
 
@@ -122,6 +134,8 @@ public abstract class Reference<T> {
      * them.  This list is protected by the above lock object. The
      * list uses the discovered field to link its elements.
      */
+     // 等待加入queue的reference对象, 在执行gc操作的时候由hotspot vm设置, 会有一个java层的线程ReferenceHandler
+     // 不断的从pending中获取元素并加入到queue中
     private static Reference<Object> pending = null;
 
     /* High-priority thread to enqueue pending References
@@ -182,11 +196,14 @@ public abstract class Reference<T> {
                     // so do this before un-linking 'r' from the 'pending' chain...
                     c = r instanceof Cleaner ? (Cleaner) r : null;
                     // unlink 'r' from 'pending' chain
+                    // 从discoveredList中获取下一个对象
                     pending = r.discovered;
                     r.discovered = null;
                 } else {
                     // The waiting on the lock may cause an OutOfMemoryError
                     // because it may try to allocate exception objects.
+                    // 如果pending为null, 就先等待, 当有对象加入pendingList中的时候,
+                    // hotspot会执行notify操作
                     if (waitForNotify) {
                         lock.wait();
                     }
@@ -209,11 +226,13 @@ public abstract class Reference<T> {
 
         // Fast path for cleaners
         if (c != null) {
+        // 如果被回收的对象的引用是Cleaner类型(继承虚引用), 那么调用clean()方法进行资源回收
             c.clean();
             return true;
         }
 
         ReferenceQueue<? super Object> q = r.queue;
+        // 将Reference对象加入ReferenceQueue, 我们可以通过调用ReferenceQueue的poll函数感知对象被回收事件
         if (q != ReferenceQueue.NULL) q.enqueue(r);
         return true;
     }

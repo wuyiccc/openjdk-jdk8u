@@ -688,7 +688,8 @@ void VMThread::execute(VM_Operation* op) {
         VMOperationRequest_lock->wait(!t->is_Java_thread());
       }
     }
-
+    // 当gc处理完成之后, 在VM_GC_Operation::doit_epilogue函数中调用VM_GC_Operation::release_and_notify_pending_list_lock()函数
+    // 释放锁并通知ReferenceHandler线程处理PendingList
     if (execute_epilog) {
       op->doit_epilogue();
     }

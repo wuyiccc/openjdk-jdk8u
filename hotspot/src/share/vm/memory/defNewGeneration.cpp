@@ -673,10 +673,12 @@ void DefNewGeneration::collect(bool   full,
   // 递归处理根集对象的引用对象, 然后复制活跃对象到新的存储空间, 广度遍历算法处理间接引用的对象
   // 这样就完成了年轻代所有对象的处理
   evacuate_followers.do_void();
-
+  // 处理发现的引用类型对象
   FastKeepAliveClosure keep_alive(this, &scan_weak_ref);
   ReferenceProcessor* rp = ref_processor();
   rp->setup_policy(clear_all_soft_refs);
+  // 这里处理DiscoveredList中的引用对象, 调用此函数的时候, 年轻代的所有对象都完成了标记阶段,
+  // 这个时候能够准确判断出对象是否可达, 不同的引用类型判断的逻辑不一样
   const ReferenceProcessorStats& stats =
   rp->process_discovered_references(&is_alive, &keep_alive, &evacuate_followers,
                                     NULL, _gc_timer, gc_tracer.gc_id());

@@ -527,14 +527,21 @@ void GenCollectedHeap::do_collection(bool  full,
           // atomic wrt other collectors in this configuration, we
           // are guaranteed to have empty discovered ref lists.
           if (rp->discovery_is_atomic()) {
+          // 这里调用enable_discovery()函数时设置_discovery_refs变量的值为true, 这样在ygc或fgc的标记阶段只会查找引用, 不会处理引用
             rp->enable_discovery(true /*verify_disabled*/, true /*verify_no_refs*/);
+            // 默认是用的引用类型回收策略为LRUMaxHeapPolicy, 与之前在ReferenceProcessor构造函数中初始化的回收策略一致,
+            // 不过这里是serial/serial old收集器执行的代码, 因此要针对垃圾收集器重新设置
             rp->setup_policy(do_clear_all_soft_refs);
           } else {
             // collect() below will enable discovery as appropriate
           }
           // 执行真正的垃圾回收工作
+          // 当执行ygc的时候, 调用DefNewGeneration::collect()函数, 执行fgc的时候, 调用TenuredGeneration:collect()函数
           _gens[i]->collect(full, do_clear_all_soft_refs, size, is_tlab);
+          // 将不可达的引用对象加入到PendingList链表(这里加入discovered, 由java那边的线程加入pending中)
           if (!rp->enqueuing_is_done()) {
+          // enqueue_discovered_references根据是否是用压缩指针选择不同的
+          // enqueue_discovered_ref_helper()模板函数
             rp->enqueue_discovered_references();
           } else {
             rp->set_enqueuing_is_done(false);

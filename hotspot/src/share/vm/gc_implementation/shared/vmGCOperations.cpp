@@ -111,7 +111,7 @@ bool VM_GC_Operation::doit_prologue() {
               byte_size_in_proper_unit(NewSize),
               proper_unit_for_byte_size(NewSize)));
   }
-
+  // 获取锁, 对应Reference中的lock
   acquire_pending_list_lock();
   // If the GC count has changed someone beat us to the collection
   // Get the Heap_lock after the pending_list_lock.

@@ -220,6 +220,7 @@ void GenMarkSweep::mark_sweep_phase1(int level,
                          &follow_cld_closure);
 
   // Process reference objects found during marking
+  // 老年代在完成所有对象的标记后, 调用process_discovered_references()函数处理引用类型
   {
     ref_processor()->setup_policy(clear_all_softrefs);
     const ReferenceProcessorStats& stats =

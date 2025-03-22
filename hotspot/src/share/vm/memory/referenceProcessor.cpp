@@ -46,6 +46,7 @@ bool             ReferenceProcessor::_pending_list_uses_discovered_field = false
 jlong            ReferenceProcessor::_soft_ref_timestamp_clock = 0;
 
 void referenceProcessor_init() {
+// 初始化java引用处理器
   ReferenceProcessor::init_statics();
 }
 
@@ -55,11 +56,14 @@ void ReferenceProcessor::init_statics() {
   jlong now = os::javaTimeNanos() / NANOSECS_PER_MILLISEC;
 
   // Initialize the soft ref timestamp clock.
+  // 这个变量会参与决定每次gc操作的时候软引用是否需要被回收
   _soft_ref_timestamp_clock = now;
   // Also update the soft ref clock in j.l.r.SoftReference
   java_lang_ref_SoftReference::set_clock(_soft_ref_timestamp_clock);
 
+  // 默认初始化的引用回收策略为总是回收
   _always_clear_soft_ref_policy = new AlwaysClearPolicy();
+  // 默认初始化的软引用回收策略为最近最少是用的被回收
   _default_soft_ref_policy      = new COMPILER2_PRESENT(LRUMaxHeapPolicy())
                                       NOT_COMPILER2(LRUCurrentHeapPolicy());
   if (_always_clear_soft_ref_policy == NULL || _default_soft_ref_policy == NULL) {
@@ -106,11 +110,19 @@ ReferenceProcessor::ReferenceProcessor(MemRegion span,
   _processing_is_mt(mt_processing),
   _next_id(0)
 {
+// 年轻代或老年代的整个地址使用范围
   _span = span;
+  // 对于单线程收集器serial/serial old来说, 以下变量的值为true
   _discovery_is_atomic = atomic_discovery;
+  // 对于单线程收集器serial/serial old来说, 以下遍历的值为false, 表示不会以并行的方式查找引用类型
   _discovery_is_mt     = mt_discovery;
+  // 对于单线程收集器serial/serial old来说, 以下两个变量的值都为1
   _num_q               = MAX2(1U, mt_processing_degree);
   _max_num_q           = MAX2(_num_q, mt_discovery_degree);
+  // number_of_subclasses_of_ref返回的值为5, 表示初始化一个类型为DiscoveredList的数组
+  // 数组的大小为5, 为了是用方便, 数组下标0～4的位置存储的DiscoveredList分别为
+  // _discoveredSoftRefs, _discoveredWeakRefs, _discoveredFinalRefs
+  // _discoveredPhantomRefs, _discoveredCleanerRefs
   _discovered_refs     = NEW_C_HEAP_ARRAY(DiscoveredList,
             _max_num_q * number_of_subclasses_of_ref(), mtGC);
 
@@ -124,11 +136,12 @@ ReferenceProcessor::ReferenceProcessor(MemRegion span,
   _discoveredCleanerRefs = &_discoveredPhantomRefs[_max_num_q];
 
   // Initialize all entries to NULL
+  // 对数组中每个列表进行初始化
   for (uint i = 0; i < _max_num_q * number_of_subclasses_of_ref(); i++) {
     _discovered_refs[i].set_head(NULL);
     _discovered_refs[i].set_length(0);
   }
-
+  // 对软引用的回收策略进行设置
   setup_policy(false /* default soft ref policy */);
 }
 
@@ -313,20 +326,27 @@ bool enqueue_discovered_ref_helper(ReferenceProcessor* ref,
                                    AbstractRefProcTaskExecutor* task_executor) {
 
   // Remember old value of pending references list
+  // pending_list_add是Reference的私有静态变量pending的地址
   T* pending_list_addr = (T*)java_lang_ref_Reference::pending_list_addr();
   T old_pending_list_value = *pending_list_addr;
 
   // Enqueue references that are not made active again, and
   // clear the decks for the next collection (cycle).
+  // 将Reference对象添加到PendingList列表中? (ps: 这里应该是discovered列表吧)
+  // 这些对象不会再变为Active状态
+  // 这里其实就是将多个DiscoveredList中的引用对象用java的Reference类中定义的discovered变量连接起来, 然后让Reference中的
+  // pending变量指向链表的首元素
   ref->enqueue_discovered_reflists((HeapWord*)pending_list_addr, task_executor);
   // Do the post-barrier on pending_list_addr missed in
   // enqueue_discovered_reflist.
   oopDesc::bs()->write_ref_field(pending_list_addr, oopDesc::load_decode_heap_oop(pending_list_addr));
 
   // Stop treating discovered references specially.
+  // 将_discovering_refs的值设置为false, 代表后面要处理引用了(之前true代表只查找)
   ref->disable_discovery();
 
   // Return true if new pending references were added
+  // 如果有新的Reference对象加入PendingList, 则函数返回true
   return old_pending_list_value != *pending_list_addr;
 }
 
@@ -364,9 +384,12 @@ void ReferenceProcessor::enqueue_discovered_reflist(DiscoveredList& refs_list,
 
   oop obj = NULL;
   oop next_d = refs_list.head();
+  // 在OpenJDK8中是用discovered变量实现PendingList
   if (pending_list_uses_discovered_field()) { // New behavior
     // Walk down the list, self-looping the next field
     // so that the References are not considered active.
+    // 将DiscoveredList中的所有引用对象添加到PendingList中,
+    // 添加到PendingList中的对象的next属性指向自己, 这样这些引用对象就不再是Active状态了
     while (obj != next_d) {
       obj = next_d;
       assert(obj->is_instanceRef(), "should be reference object");
@@ -378,15 +401,18 @@ void ReferenceProcessor::enqueue_discovered_reflist(DiscoveredList& refs_list,
       assert(java_lang_ref_Reference::next(obj) == NULL,
              "Reference not active; should not be discovered");
       // Self-loop next, so as to make Ref not active.
+      // 执行的操作为obj._next=obj, 这样就变成了Pending状态
       java_lang_ref_Reference::set_next_raw(obj, obj);
       if (next_d != obj) {
         oopDesc::bs()->write_ref_field(java_lang_ref_Reference::discovered_addr(obj), next_d);
       } else {
+        // 当前处理的Reference对象是DiscoveredList中的最后一个对象
         // This is the last object.
         // Swap refs_list into pending_list_addr and
         // set obj's discovered to what we read from pending_list_addr.
         oop old = oopDesc::atomic_exchange_oop(refs_list.head(), pending_list_addr);
         // Need post-barrier on pending_list_addr. See enqueue_discovered_ref_helper() above.
+        // 执行的操作为obj._discovered=old
         java_lang_ref_Reference::set_discovered_raw(obj, old); // old may be NULL
         oopDesc::bs()->write_ref_field(java_lang_ref_Reference::discovered_addr(obj), old);
       }
@@ -467,6 +493,8 @@ void ReferenceProcessor::enqueue_discovered_reflists(HeapWord* pending_list_addr
     task_executor->execute(tsk);
   } else {
     // Serial code: call the parent class's implementation
+    // 必须要对保存软引用,弱引用等引用对象的DiscoveredList进行处理, 完成后清空DiscoverdList,
+    // 然后等待下一次继续重复是用这些列表
     for (uint i = 0; i < _max_num_q * number_of_subclasses_of_ref(); i++) {
       enqueue_discovered_reflist(_discovered_refs[i], pending_list_addr);
       _discovered_refs[i].set_head(NULL);
@@ -1139,10 +1167,15 @@ void ReferenceProcessor::verify_referent(oop obj) {
 //     We call this choice the "RefeferentBasedDiscovery" policy.
 bool ReferenceProcessor::discover_reference(oop obj, ReferenceType rt) {
   // Make sure we are discovering refs (rather than processing discovered refs).
+  // _discovering_refs在执行gc的时候设置为true, 表示只查找引用类型而不处理
+  // 当执行完gc的时候设置为false, 表示要处理引用类型
+  // RegisterReferences表示hotspot vm 是否要主持引用类型, 默认值为true
   if (!_discovering_refs || !RegisterReferences) {
     return false;
   }
   // We only discover active references.
+  // 我们只查找那些处于Active状态的Reference对象, 也就是next为null的引用类型
+  // 其他状态下的Reference对象表示查找过程已经完成
   oop next = java_lang_ref_Reference::next(obj);
   if (next != NULL) {   // Ref is no longer active
     return false;
@@ -1165,6 +1198,9 @@ bool ReferenceProcessor::discover_reference(oop obj, ReferenceType rt) {
       return false;  // referent is reachable
     }
   }
+  // 如果当前对象为软引用, 在不考虑referent是否被标记的清空下, 根据软引用的回收策略
+  // 有时也能判断referent不会被回收, 如果referent在最近限定的一段时间被使用过, 那么函数会直接返回false, reference不会被加入discoveredList中
+  // 也就意味着软引用不会被回收
   if (rt == REF_SOFT) {
     // For soft refs we can decide now if these are not
     // current candidates for clearing, in which case we
@@ -1224,6 +1260,7 @@ bool ReferenceProcessor::discover_reference(oop obj, ReferenceType rt) {
   }
 
   // Get the right type of discovered queue head.
+  // 根据类型获取对应的DiscoveredList, 可能获取的是_discoveredSoftRefs和_discoveredWeakRefs等
   DiscoveredList* list = get_discovered_list(rt);
   if (list == NULL) {
     return false;   // nothing special needs to be done
@@ -1234,8 +1271,11 @@ bool ReferenceProcessor::discover_reference(oop obj, ReferenceType rt) {
   } else {
     // We do a raw store here: the field will be visited later when processing
     // the discovered references.
+    // 通过单线程的方式处理发现的引用类型, 将引用类型添加到DiscoveredList中
     oop current_head = list->head();
     // The last ref must have its discovered field pointing to itself.
+    // 如果current_head为null的时候, 则Reference对象的_discovered变量会指向自己
+    // 这样列表中的最后一个对象肯定指向自己
     oop next_discovered = (current_head != NULL) ? current_head : obj;
 
     assert(discovered == NULL, "control point invariant");

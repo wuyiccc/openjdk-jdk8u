@@ -231,7 +231,7 @@ template <class T> void specialized_oop_adjust_pointers(InstanceRefKlass *ref, o
   debug_only(trace_reference_gc("InstanceRefKlass::oop_adjust_pointers", obj,
                                 referent_addr, next_addr, discovered_addr);)
 }
-
+// 如果确定referent对象是活跃的, 这里需要调整对应Reference中的引用: referent, next, discovered属性的值
 int InstanceRefKlass::oop_adjust_pointers(oop obj) {
   int size = size_helper();
   InstanceKlass::oop_adjust_pointers(obj);
@@ -255,11 +255,14 @@ int InstanceRefKlass::oop_adjust_pointers(oop obj) {
   ReferenceProcessor* rp = closure->_ref_processor;                             \
   if (!oopDesc::is_null(heap_oop)) {                                            \
     oop referent = oopDesc::decode_heap_oop_not_null(heap_oop);                 \
+    /* gc的时候InstanceRefKlass::oop_oop_iterate_nv()函数走到这里, 发现被引用的对象已经不可达了(ps: 就算是还没有遍历到这个对象, 也默认不可达, 是否真的不可达再遍历完毕之后由后面二次判断处理) */\
+    /* 所以调用discover_reference()函数进行处理 */ \
     if (!referent->is_gc_marked() && (rp != NULL) &&                            \
         rp->discover_reference(obj, reference_type())) {                        \
       return size;                                                              \
     } else if (contains(referent_addr)) {                                       \
       /* treat referent as normal oop */                                        \
+      /* 如果是ygc, 当被引用的对象在年轻代不需要进行特殊处理, 而需要和其他被强引用的对象做一样的处理逻辑即可 */ \
       SpecializationStats::record_do_oop_call##nv_suffix(SpecializationStats::irk);\
       closure->do_oop##nv_suffix(referent_addr);                                \
     }                                                                           \
@@ -448,7 +451,8 @@ int InstanceRefKlass::oop_update_pointers(ParCompactionManager* cm, oop obj) {
   return size_helper();
 }
 #endif // INCLUDE_ALL_GCS
-
+// 在Universe初始化阶段, 在加载完成java.lang.Reference类后会调用InstanceRefKlass::update_nonstatic_oop_maps()
+// 函数更新OopMapBlock相关信息
 void InstanceRefKlass::update_nonstatic_oop_maps(Klass* k) {
   // Clear the nonstatic oop-map entries corresponding to referent
   // and nextPending field.  They are treated specially by the
@@ -480,6 +484,8 @@ void InstanceRefKlass::update_nonstatic_oop_maps(Klass* k) {
            "just checking");
 
     // Update map to (3,1) - point to offset of 3 (words) with 1 map entry.
+    // 更新OopMapBlock信息, 这样在gc的时候只会遍历引用对象的queue变量, 而不会遍历referent, next, discovered变量
+    // 这样就不会由于Reference的存在而导致referent等变为强引用了
     map->set_offset(java_lang_ref_Reference::queue_offset);
     map->set_count(1);
   }
@@ -523,7 +529,7 @@ void InstanceRefKlass::acquire_pending_list_lock(BasicLock *pending_list_basic_l
   // Each time we attempt the GC, we allocate the handle below
   // to hold the pending list lock. We want to free this handle.
   HandleMark hm;
-
+  // 调用java_lang_ref_Reference::pending_list_lock()函数就是通过偏移的方式查找到Reference类中定义的lock变量的值
   Handle h_lock(THREAD, java_lang_ref_Reference::pending_list_lock());
   ObjectSynchronizer::fast_enter(h_lock, pending_list_basic_lock, false, THREAD);
   assert(ObjectSynchronizer::current_thread_holds_lock(
@@ -547,9 +553,11 @@ void InstanceRefKlass::release_and_notify_pending_list_lock(
            JavaThread::current(), h_lock),
          "Lock should be held");
   // Notify waiters on pending lists lock if there is any reference.
+  // 如果PendingList中含有引用对象, 则通知ReferenceHandler线程处理PendingList
   if (java_lang_ref_Reference::pending_list() != NULL) {
     ObjectSynchronizer::notifyall(h_lock, THREAD);
   }
+  // 释放h_lock锁
   ObjectSynchronizer::fast_exit(h_lock(), pending_list_basic_lock, THREAD);
   if (HAS_PENDING_EXCEPTION) CLEAR_PENDING_EXCEPTION;
 }

@@ -140,6 +140,7 @@ public:
   inline oop referent() const { return _referent; }
 
   // Returns true if referent is alive.
+  // 判断_referent对象是否活跃
   inline bool is_referent_alive() const {
     return _is_alive->do_object_b(_referent);
   }
@@ -174,6 +175,7 @@ public:
   }
 
   // Update the discovered field.
+  // 更新Reference对象中的discovered字段
   inline void update_discovered() {
     // First _prev_next ref actually points into DiscoveredList (gross).
     if (UseCompressedOops) {
@@ -199,6 +201,7 @@ public:
   inline void move_to_next() {
     if (_ref == _next) {
       // End of the list.
+      // 由于DiscoveredList列表的最后一个Reference对象的_next属性指向自己, 因此当_ref等于_next时表示列表已经遍历完成
       _ref = NULL;
     } else {
       _ref = _next;

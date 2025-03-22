@@ -125,10 +125,13 @@ void GenMarkSweep::invoke_at_safepoint(int level, ReferenceProcessor* rp, bool c
   // Clear/invalidate below make use of the "prev_used_regions" saved earlier.
   if (all_empty) {
     // We've evacuated all generations below us.
+    // 如果内存代已经不存在任何活跃对象, 只需要将老年代的卡表设置为clean_card即可
     rs->clear_into_younger(old_gen);
   } else {
     // Invalidate the cards corresponding to the currently used
     // region and clear those corresponding to the evacuated region.
+    // 如果老年代中有存活对象, 需要将压缩空间对应的所有卡表项标记为dirty_card,
+    // 同时要将老年代中除压缩空间以外的所有剩余空闲空间对应的卡表项标记为clean_card
     rs->invalidate_or_clear(old_gen);
   }
 

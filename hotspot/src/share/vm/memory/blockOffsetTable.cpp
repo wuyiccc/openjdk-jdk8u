@@ -790,6 +790,7 @@ void BlockOffsetArrayContigSpace::alloc_block_work(HeapWord* blk_start,
 HeapWord* BlockOffsetArrayContigSpace::initialize_threshold() {
   assert(!Universe::heap()->is_in_reserved(_array->_offset_array),
          "just checking");
+  // _array的类型为BlockOffsetSharedArray, 它是用BlockOffsetTable::_bottom属性来初始化
   _next_offset_index = _array->index_for(_bottom);
   _next_offset_index++;
   _next_offset_threshold =

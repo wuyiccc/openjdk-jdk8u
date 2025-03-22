@@ -346,8 +346,10 @@ void CardTableRS::invalidate_or_clear(Generation* old_gen) {
   MemRegion used_mr = old_gen->used_region();
   MemRegion to_be_cleared_mr = old_gen->prev_used_region().minus(used_mr);
   if (!to_be_cleared_mr.is_empty()) {
+  // 将to_be_cleared_mr区域对应的卡表项设置为clean_card
     clear(to_be_cleared_mr);
   }
+  // 将used_mr区域对应的卡表项设置为dirty_card
   invalidate(used_mr);
 }
 

@@ -421,13 +421,15 @@ HeapWord* CompactibleSpace::forward(oop q, size_t size,
     q->init_mark();
     assert(q->forwardee() == NULL, "should be forwarded to NULL");
   }
-
+  // 这里对compact_top+size, 计算出来的值就是当前对象的末尾地址了
   compact_top += size;
 
   // we need to update the offset table so that the beginnings of objects can be
   // found during scavenge.  Note that we are updating the offset table based on
   // where the object will be once the compaction phase finishes.
   // 压缩每个对象的同时需要更新对应的偏移表
+  // 当compact_top(对象末尾地址)比cp->threshold大的时候, 表示当前存储的对象跨越了卡页,
+  // 需要同步更新threshold的值
   if (compact_top > cp->threshold)
     cp->threshold =
       cp->space->cross_threshold(compact_top - size, compact_top);
@@ -852,6 +854,7 @@ HeapWord* OffsetTableContigSpace::initialize_threshold() {
 
 HeapWord* OffsetTableContigSpace::cross_threshold(HeapWord* start, HeapWord* end) {
   _offsets.alloc_block(start, end);
+  // 获取_next_offset_threshold属性的值
   return _offsets.threshold();
 }
 

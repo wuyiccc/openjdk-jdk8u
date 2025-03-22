@@ -69,6 +69,7 @@ public class Cleaner
     // Doubly-linked list of live cleaners, which prevents the cleaners
     // themselves from being GC'd before their referents
     //
+     // 通过双向链表来保存多个Cleaner对象, 防止gc在处理referent之前将这些Cleaner对象回收
     static private Cleaner first = null;
 
     private Cleaner
@@ -87,6 +88,7 @@ public class Cleaner
     private static synchronized boolean remove(Cleaner cl) {
 
         // If already removed, do nothing
+        // 如果已经移除了Cleaner对象, 则直接返回false
         if (cl.next == cl)
             return false;
 
@@ -103,6 +105,7 @@ public class Cleaner
             cl.prev.next = cl.next;
 
         // Indicate removal by pointing the cleaner to itself
+        // 将Cleaner对象的next和prev属性指向自己, 表示移除成功
         cl.next = cl;
         cl.prev = cl;
         return true;
@@ -127,6 +130,7 @@ public class Cleaner
      *
      * @return  The new cleaner
      */
+     // 创建一个新的Cleaner对象
     public static Cleaner create(Object ob, Runnable thunk) {
         if (thunk == null)
             return null;

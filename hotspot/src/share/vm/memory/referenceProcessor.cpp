@@ -264,6 +264,7 @@ ReferenceProcessorStats ReferenceProcessor::process_discovered_references(
   size_t phantom_count = 0;
   {
     GCTraceTime tt("PhantomReference", trace_time, false, gc_timer, gc_id);
+    // 这里传递的clear_referent为false,
     phantom_count =
       process_discovered_reflist(_discoveredPhantomRefs, NULL, false,
                                  is_alive, keep_alive, complete_gc, task_executor);

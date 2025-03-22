@@ -144,6 +144,7 @@ void MarkSweep::restore_marks() {
 
   // deal with the overflow
   while (!_preserved_oop_stack.is_empty()) {
+    // 这里拿到的对象已经是新的对象了(在phase3阶段中进行了更新)
     oop obj       = _preserved_oop_stack.pop();
     markOop mark  = _preserved_mark_stack.pop();
     obj->set_mark(mark);

@@ -102,7 +102,7 @@ void GenMarkSweep::invoke_at_safepoint(int level, ReferenceProcessor* rp, bool c
   mark_sweep_phase3(level);
   // 移动所有活跃对象到新的位置
   mark_sweep_phase4();
-
+  // mark_sweep_phase中对于对象头仅仅是初始化了, 这里恢复默认对象头信息为原来的信息
   restore_marks();
 
   // Set saved marks for allocation profiler (and other things? -- dld)

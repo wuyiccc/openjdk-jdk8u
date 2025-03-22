@@ -250,10 +250,12 @@ inline HeapWord* Space::block_start(const void* p) {
   /* Copy all live objects to their new location                                \
    * Used by MarkSweep::mark_sweep_phase4() */                                  \
                                                                                 \
+  /* q是遍历指针, t指向最后一个活跃对象的位置 */  \
   HeapWord*       q = bottom();                                                 \
   HeapWord* const t = _end_of_live;                                             \
   debug_only(HeapWord* prev_q = NULL);                                          \
                                                                                 \
+  /* 跳过不需要移动的内存快 */\
   if (q < t && _first_dead > q &&                                               \
       !oop(q)->is_gc_marked()) {                                                \
     debug_only(                                                                 \
@@ -281,6 +283,7 @@ inline HeapWord* Space::block_start(const void* p) {
                                                                                 \
   const intx scan_interval = PrefetchScanIntervalInBytes;                       \
   const intx copy_interval = PrefetchCopyIntervalInBytes;                       \
+  /* 循环移动所有的活跃对象到转发指针指向的地址 */\
   while (q < t) {                                                               \
     if (!oop(q)->is_gc_marked()) {                                              \
       /* mark is pointer to next marked oop */                                  \
@@ -299,8 +302,11 @@ inline HeapWord* Space::block_start(const void* p) {
       Prefetch::write(compaction_top, copy_interval);                           \
                                                                                 \
       /* copy object and reinit its mark */                                     \
+      /* 复制对象到转发指针指向的地址, 同时初始化对象头 */\
       assert(q != compaction_top, "everything in this pass should be moving");  \
       Copy::aligned_conjoint_words(q, compaction_top, size);                    \
+      /* 这里初始化对象头, 随后会在GenMarkSweep::invoke_at_safepoint()函数中调用restore_marks()函*/\
+      /* 恢复某些对象的对象头信息 */\
       oop(compaction_top)->init_mark();                                         \
       assert(oop(compaction_top)->klass() != NULL, "should have a class");      \
                                                                                 \
@@ -312,6 +318,7 @@ inline HeapWord* Space::block_start(const void* p) {
   /* Let's remember if we were empty before we did the compaction. */           \
   bool was_empty = used_region().is_empty();                                    \
   /* Reset space after compaction is complete */                                \
+  /* 将top指针调整到compact_top处 */ \
   reset_after_compaction();                                                     \
   /* We do this clear, below, since it has overloaded meanings for some */      \
   /* space subtypes.  For example, OffsetTableContigSpace's that were   */      \

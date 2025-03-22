@@ -1189,6 +1189,7 @@ instanceOop InstanceKlass::register_finalizer(instanceOop i, TRAPS) {
   JavaValue result(T_VOID);
   JavaCallArguments args(h_i);
   methodHandle mh (THREAD, Universe::finalizer_register_method());
+  // 调用Finalizer类中的register()方法, 这样就能通过Finalizer对象链找到所有重写finalize()方法的对象了
   JavaCalls::call(&result, mh, &args, CHECK_NULL);
   return h_i();
 }

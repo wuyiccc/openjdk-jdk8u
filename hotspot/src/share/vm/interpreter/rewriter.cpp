@@ -119,6 +119,11 @@ void Rewriter::rewrite_Object_init(methodHandle method, TRAPS) {
   while (!bcs.is_last_bytecode()) {
     Bytecodes::Code opcode = bcs.raw_next();
     switch (opcode) {
+    // hotspot vm 将Object类中构造函数的return指令替换为_return_register_finalizer指令, 该指令并不是标准的字节码指令, 而是hotspot vm
+    // 扩展的指令, 这样在后续处理该指令的时候会调用Finalizer.register()方法, 该方法会将对象包裹成Finalizer对象加入Finalizer链,
+    // 最终就可以通过Finalizer链来特殊的处理这些有finalize()方法的对象了,
+    // 后面在解析执行new字节码指令的时候会调用TemplateTable::new()函数生成的代码, 当一个类重写了finalize()方法的时候会执行慢速分配,
+    // 最终会调用InstanceKlass::allocate_instance()函数
       case Bytecodes::_return: *bcs.bcp() = Bytecodes::_return_register_finalizer; break;
 
       case Bytecodes::_istore:
@@ -512,7 +517,8 @@ void Rewriter::rewrite_bytecodes(TRAPS) {
   // determine index maps for Method* rewriting
   // 1. 生成常量池缓存项索引
   compute_index_maps();
-
+  // RegisterFinalizersAtInit为true表示在调用构造函数返回之前调用Finalizer.register()方法注册对象,
+  // 如果为false, 那么则在对象空间分配好之后再注册对象
   if (RegisterFinalizersAtInit && _klass->name() == vmSymbols::java_lang_Object()) {
     bool did_rewrite = false;
     int i = _methods->length();

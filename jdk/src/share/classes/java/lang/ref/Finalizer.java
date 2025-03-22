@@ -30,7 +30,10 @@ import java.security.AccessController;
 import sun.misc.JavaLangAccess;
 import sun.misc.SharedSecrets;
 import sun.misc.VM;
-
+// 在类加载的过程中, 如果当前类重写了finalize()方法, 则其对象会被封装为FinalReference对象, 这样FinalReference对象的referent字段就指向了
+// 当前类的对象, 需要注意的是 Finalizer对象链会保存全部的只存在FinalizerReference引用且没有被执行finalize()方法的Finalizer对象,
+// 防止Finalizer对象在其引用的对象之前被GC回收. 在GC过程中如果发现referent对象不可达, 则Finalizer对象会添加到queue队列中,
+// 所以在queue队列中的对象都会被调用finalize()方法
 final class Finalizer extends FinalReference<Object> { /* Package-private; must be in
                                                           same package as the Reference
                                                           class */
@@ -38,7 +41,7 @@ final class Finalizer extends FinalReference<Object> { /* Package-private; must 
     private static ReferenceQueue<Object> queue = new ReferenceQueue<>();
     private static Finalizer unfinalized = null;
     private static final Object lock = new Object();
-
+    // 定义的这两个属性可将Finalizer对象连接成双向链表
     private Finalizer
         next = null,
         prev = null;
@@ -47,6 +50,8 @@ final class Finalizer extends FinalReference<Object> { /* Package-private; must 
         return (next == this);
     }
 
+    // 将当前对象插入Finalizer对象链中, 并将新插入的this对象放到双向链表的头部
+    // unfinalized是一个静态字段, 指向链表的头部, 如果Finalizer类不卸载, 那么这个链表中的对象永远都存活
     private void add() {
         synchronized (lock) {
             if (unfinalized != null) {
@@ -76,7 +81,7 @@ final class Finalizer extends FinalReference<Object> { /* Package-private; must 
             this.prev = this;
         }
     }
-
+    // 私有构造函数, 开发者不能创建Finalizer对象
     private Finalizer(Object finalizee) {
         super(finalizee, queue);
         add();
@@ -87,13 +92,21 @@ final class Finalizer extends FinalReference<Object> { /* Package-private; must 
     }
 
     /* Invoked by VM */
+    // register方法由hotspot vm 调用
     static void register(Object finalizee) {
+        // 封装为Finalizer对象, 在创建对象的时候会调用Finalizer构造函数, 在构造函数中会调用add()方法
+        // 将该对象添加到Finalizer对象链中
         new Finalizer(finalizee);
     }
 
     private void runFinalizer(JavaLangAccess jla) {
+        // 如果hasBeenFinalized()返回true, 代表当前对象的finalize()方法已经调用完成了, 不能重复调用,
+        // 如果返回false, 表示Finalizer对象引用的对象不可达, 需要调用finalize()方法, 但是在调用此方法之前,
+        // 必须要从Finalizer对象链中移除Finalizer对象.
+        // 调用finalize()方法时, 首先通过get()方法获取被引用的对象, 然后调用其finalize()方法, 最后调用clear()方法清除相应的引用
         synchronized (this) {
             if (hasBeenFinalized()) return;
+            // 必须从Finalizer对象链表中移除那些将要执行finalize()方法的Finalizer对象, 否则会造成内存泄漏
             remove();
         }
         try {
@@ -106,6 +119,7 @@ final class Finalizer extends FinalReference<Object> { /* Package-private; must 
                 finalizee = null;
             }
         } catch (Throwable x) { }
+        // 调用Reference类中定义的clear()方法, 此方法将referent设置为null
         super.clear();
     }
 
@@ -188,7 +202,7 @@ final class Finalizer extends FinalReference<Object> { /* Package-private; must 
                     f.runFinalizer(jla);
                 }}});
     }
-
+    // 从ReferenceQueue中获取对象并执行对象的finalize()方法
     private static class FinalizerThread extends Thread {
         private volatile boolean running;
         FinalizerThread(ThreadGroup g) {
@@ -213,6 +227,7 @@ final class Finalizer extends FinalReference<Object> { /* Package-private; must 
             running = true;
             for (;;) {
                 try {
+                    // 获取finalizer对象
                     Finalizer f = (Finalizer)queue.remove();
                     f.runFinalizer(jla);
                 } catch (InterruptedException x) {

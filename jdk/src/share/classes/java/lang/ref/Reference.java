@@ -39,13 +39,14 @@ import sun.misc.SharedSecrets;
  * @since    1.2
  */
 /**
-java引用类型有四种状态, 这四种状态在Reference类中并没有明确的字段标识, 而是通过queue和next两个字段来进行区分的:
-1. Active: Active与其他三个状态的区别就是next为null, 如果说实例注册了引用队列, 那么queue=ReferenceQueue,
-如果说实例没有注册引用队列, 那么queue=ReferenceQueue.NULL
-2. Pending: next=this, 处于这个状态下的实例肯定注册了引用队列, queue=ReferenceQueue
-3. Enqueued: next=this, 或者next指向队列中下一个元素, 处在这个状态下的实例肯定注册了引用队列, queue=ReferenceQueue.ENQUEUED,
-4. Inactive: next=this, queue=ReferenceQueue.NULL
-**/
+ * There are four states for Java reference types, which are not explicitly marked by fields in the Reference class.
+ * Instead, they are distinguished by the `queue` and `next` fields:
+ * 1. Active: The distinction between Active and the other three states is that `next` is null. If the instance is registered with a reference queue, then `queue = ReferenceQueue`.
+ *    If the instance is not registered with a reference queue, then `queue = ReferenceQueue.NULL`.
+ * 2. Pending: `next = this`. Instances in this state must be registered with a reference queue, and `queue = ReferenceQueue`.
+ * 3. Enqueued: `next = this` or `next` points to the next element in the queue. Instances in this state must be registered with a reference queue, and `queue = ReferenceQueue.ENQUEUED`.
+ * 4. Inactive: `next = this`, `queue = ReferenceQueue.NULL`.
+ */
 public abstract class Reference<T> {
 
     /* A Reference instance is in one of four possible internal states:
@@ -96,9 +97,9 @@ public abstract class Reference<T> {
      * field is also used for linking Reference objects in the pending list.
      */
 
-    // referent表示被引用的对象, 注意与表示引用对象的reference区分
+    // `referent` represents the referenced object. Note the distinction between `referent` and `reference`.
     private T referent;         /* Treated specially by GC */
-    // 回收队列, 由程序员在Reference的构造函数中指定
+    // The reference queue, specified by the programmer in the Reference constructor.
     volatile ReferenceQueue<? super T> queue;
 
     /* When active:   NULL
@@ -107,15 +108,15 @@ public abstract class Reference<T> {
      *    Inactive:   this
      */
     @SuppressWarnings("rawtypes")
-    // 当前引用对象被加入queue中的时候, 该字段被设置为queue中的下一个元素, 以形成链表结构
+    // When the current reference object is added to the queue, this field is set to the next element in the queue to form a linked list structure.
     volatile Reference next;
 
     /* When active:   next element in a discovered reference list maintained by GC (or this if last)
      *     pending:   next element in the pending list (or null if last)
      *   otherwise:   NULL
      */
-    //  在执行gc的时候, hotspot vm底层会维护一个叫做DiscoveredList的链表, 存放的是Reference对象
-    // discovered字段指向的就是链表的下一个元素, 由hotspot vm 设置
+    // During garbage collection, the HotSpot VM maintains a linked list called DiscoveredList, which stores Reference objects.
+    // The `discovered` field points to the next element in the list, and it is set by the HotSpot VM.
     transient private Reference<T> discovered;  /* used by VM */
 
 
@@ -125,7 +126,7 @@ public abstract class Reference<T> {
      * as possible, allocate no new objects, and avoid calling user code.
      */
     static private class Lock { }
-    // 创建线程同步锁对象
+    // Create a thread synchronization lock object.
     private static Lock lock = new Lock();
 
 
@@ -134,8 +135,8 @@ public abstract class Reference<T> {
      * them.  This list is protected by the above lock object. The
      * list uses the discovered field to link its elements.
      */
-     // 等待加入queue的reference对象, 在执行gc操作的时候由hotspot vm设置, 会有一个java层的线程ReferenceHandler
-     // 不断的从pending中获取元素并加入到queue中
+    // References waiting to be added to the queue. This list is populated by the HotSpot VM during garbage collection.
+    // A Java-level thread, ReferenceHandler, continuously retrieves elements from `pending` and adds them to the queue.
     private static Reference<Object> pending = null;
 
     /* High-priority thread to enqueue pending References
@@ -195,15 +196,15 @@ public abstract class Reference<T> {
                     // 'instanceof' might throw OutOfMemoryError sometimes
                     // so do this before un-linking 'r' from the 'pending' chain...
                     c = r instanceof Cleaner ? (Cleaner) r : null;
-                    // unlink 'r' from 'pending' chain
-                    // 从discoveredList中获取下一个对象
+                    // Unlink 'r' from the 'pending' chain
+                    // Retrieve the next object from the DiscoveredList.
                     pending = r.discovered;
                     r.discovered = null;
                 } else {
                     // The waiting on the lock may cause an OutOfMemoryError
                     // because it may try to allocate exception objects.
-                    // 如果pending为null, 就先等待, 当有对象加入pendingList中的时候,
-                    // hotspot会执行notify操作
+                    // If `pending` is null, wait. When an object is added to the pending list,
+                    // HotSpot will perform a notify operation.
                     if (waitForNotify) {
                         lock.wait();
                     }
@@ -226,13 +227,15 @@ public abstract class Reference<T> {
 
         // Fast path for cleaners
         if (c != null) {
-        // 如果被回收的对象的引用是Cleaner类型(继承虚引用), 那么调用clean()方法进行资源回收
+            // If the reference being reclaimed is of type Cleaner (which extends PhantomReference),
+            // call the `clean()` method to perform resource cleanup.
             c.clean();
             return true;
         }
 
         ReferenceQueue<? super Object> q = r.queue;
-        // 将Reference对象加入ReferenceQueue, 我们可以通过调用ReferenceQueue的poll函数感知对象被回收事件
+        // Add the Reference object to the ReferenceQueue. We can detect object reclamation events
+        // by calling the `poll` function of the ReferenceQueue.
         if (q != ReferenceQueue.NULL) q.enqueue(r);
         return true;
     }

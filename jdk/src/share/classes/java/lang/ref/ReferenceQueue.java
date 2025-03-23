@@ -34,47 +34,53 @@ import java.util.function.Consumer;
  * @author   Mark Reinhold
  * @since    1.2
  */
-// ReferenceQueue只是名义上的引用队列, 其内部并没有一个明确的数组/链表结构来存储队列元素
-// 而且通过length, head, 和Reference对象自己的next指针来形成一套模拟的链表,
-// 这也是为什么ReferenceQueue队列元素必须是Reference的原因
+// ReferenceQueue is nominally a reference queue, but it does not have an explicit array or linked list structure to store queue elements.
+// Instead, it uses `length`, `head`, and the `next` pointer of the Reference objects themselves to simulate a linked list.
+// This is why the elements of the ReferenceQueue must be Reference objects.
 public class ReferenceQueue<T> {
 
     /**
      * Constructs a new reference-object queue.
      */
     public ReferenceQueue() { }
-    // 内部类null继承自ReferenceQueue, 覆写了enqueue()方法并返回false
+
+    // The internal class `Null` extends ReferenceQueue and overrides the `enqueue()` method to return false.
     private static class Null<S> extends ReferenceQueue<S> {
         boolean enqueue(Reference<? extends S> r) {
             return false;
         }
     }
-    // ReferenceQueue.NULL和ENQUEUED都是内部类Null的新实例
+
+    // ReferenceQueue.NULL and ENQUEUED are both instances of the internal class `Null`.
     static ReferenceQueue<Object> NULL = new Null<>();
     static ReferenceQueue<Object> ENQUEUED = new Null<>();
-    // 静态内部类, 作为锁对象
+
+    // Static internal class used as a lock object.
     static private class Lock { };
     private Lock lock = new Lock();
-    // 引用链表的头节点
+
+    // The head node of the reference linked list.
     private volatile Reference<? extends T> head = null;
-    // 引用队列的长度, 入队则增加1, 出队则减少1
+
+    // The length of the reference queue. Incremented on enqueue and decremented on dequeue.
     private long queueLength = 0;
-    // 入队操作, 只会被Reference实例调用
+
+    // Enqueue operation, only called by Reference instances.
     boolean enqueue(Reference<? extends T> r) { /* Called only by Reference class */
-        // 加锁
+        // Acquire the lock.
         synchronized (lock) {
             // Check that since getting the lock this reference hasn't already been
-            // enqueued (and even then removed)
+            // enqueued (and even then removed).
             ReferenceQueue<?> queue = r.queue;
-            // 如果引用队列持有的实例为NULL或者ENQUEUED, 则入队失败返回false
+            // If the reference queue's instance is NULL or ENQUEUED, the enqueue operation fails and returns false.
             if ((queue == NULL) || (queue == ENQUEUED)) {
                 return false;
             }
             assert queue == this;
-            // 当前引用对象入队后, 将queue属性设置为ReferenceQueue.ENQUEUED
+            // After the current reference object is enqueued, set its `queue` property to ReferenceQueue.ENQUEUED.
             r.queue = ENQUEUED;
-            // 将新增的节点插入队列的头部, 如果当前的ReferenceQueue队列中没有元素
-            // 则Reference.next指向自己, 否则指向下一个元素
+            // Insert the new node at the head of the queue. If the current ReferenceQueue is empty,
+            // then Reference.next points to itself; otherwise, it points to the next element.
             r.next = (head == null) ? r : head;
             head = r;
             queueLength++;
@@ -85,13 +91,14 @@ public class ReferenceQueue<T> {
             return true;
         }
     }
-    // 引用队列的poll操作, 此方法必须在加锁的情况下调用
+
+    // Poll operation for the reference queue. This method must be called while holding the lock.
     private Reference<? extends T> reallyPoll() {       /* Must hold lock */
         Reference<? extends T> r = head;
         if (r != null) {
             @SuppressWarnings("unchecked")
             Reference<? extends T> rn = r.next;
-            // 更新next节点为头节点, 如果next节点为自身, 那么队列中只有当前这个对象的一个元素
+            // Update the next node as the head node. If the next node is itself, then the queue contains only this one element.
             head = (rn == r) ? null : rn;
             r.queue = NULL;
             r.next = r;

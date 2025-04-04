@@ -352,6 +352,11 @@ JLI_Launch(int argc, char ** argv,              /* main argc, argc */
         } \
     } while (JNI_FALSE)
 
+// 简单添加一下方法
+void getParameters(JNIEnv *env, jclass mainClass, jmethodID mainID, jobjectArray mainArgs) {
+
+    printf("成功接收到变量参数");
+}
 // 被JavaMain线程调用, args是java main函数的args参数
 int JNICALL
 JavaMain(void * _args)
@@ -493,11 +498,7 @@ JavaMain(void * _args)
     // 销毁jvm然后退出, detach主线程+DestroyJVM, 与主线程断开连接
     LEAVE();
 }
-// 简单添加一下方法
-void getParameters(JNIEnv *env, jclass mainClass, jmethodID mainID, jobjectArray mainArgs) {
 
-    printf("成功接收到变量参数");
-}
 
 /*
  * Checks the command line options to find which JVM type was

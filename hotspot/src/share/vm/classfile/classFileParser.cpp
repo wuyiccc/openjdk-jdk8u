@@ -4172,6 +4172,9 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
       }
     }
 #endif
+    //if (strcmp(name->as_C_string(), "com/wuyiccc/Test") == 0) {
+    //    int x = 10;
+    //}
     // 获取指向父类名称的索引地址
     u2 super_class_index = cfs->get_u2_fast();
     instanceKlassHandle super_klass = parse_super_class(super_class_index,

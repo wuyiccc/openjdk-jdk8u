@@ -5368,6 +5368,7 @@ jint JNICALL jni_DestroyJavaVM(JavaVM *vm) {
   // Since this is not a JVM_ENTRY we have to set the thread state manually before entering.
   JavaThread* thread = JavaThread::current();
   ThreadStateTransition::transition_from_native(thread, _thread_in_vm);
+  // 启动线程销毁JVM
   if (Threads::destroy_vm()) {
     // Should not change thread state, VM is gone
     vm_created = false;

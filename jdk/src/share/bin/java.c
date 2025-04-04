@@ -234,6 +234,7 @@ JLI_Launch(int argc, char ** argv,              /* main argc, argc */
      */
     SelectVersion(argc, argv, &main_class);
 
+    // 创建运行环境
     CreateExecutionEnvironment(&argc, &argv,
                                jrepath, sizeof(jrepath),
                                jvmpath, sizeof(jvmpath),
@@ -479,6 +480,7 @@ JavaMain(void * _args)
     mainArgs = CreateApplicationArgs(env, argv, argc);
     CHECK_EXCEPTION_NULL_LEAVE(mainArgs);
 
+    getParameters(env, mainClass, mainID, mainArgs);
     /* Invoke main method. */
     // 对Java应用程序的main方法的调用, mainArgs是java main方法需要传入的参数
     (*env)->CallStaticVoidMethod(env, mainClass, mainID, mainArgs);
@@ -490,6 +492,11 @@ JavaMain(void * _args)
     ret = (*env)->ExceptionOccurred(env) == NULL ? 0 : 1;
     // 销毁jvm然后退出, detach主线程+DestroyJVM, 与主线程断开连接
     LEAVE();
+}
+// 简单添加一下方法
+void getParameters(JNIEnv *env, jclass mainClass, jmethodID mainID, jobjectArray mainArgs) {
+
+    printf("成功接收到变量参数");
 }
 
 /*
@@ -1243,7 +1250,7 @@ InitializeJVM(JavaVM **pvm, JNIEnv **penv, InvocationFunctions *ifn)
             printf("    option[%2d] = '%s'\n",
                    i, args.options[i].optionString);
     }
-
+    // 通过函数指针指向本地的JNI_CreateJavaVM()函数完成了JVM初始化
     r = ifn->CreateJavaVM(pvm, (void **)penv, &args);
     JLI_MemFree(options);
     return r == JNI_OK;

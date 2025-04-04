@@ -1044,6 +1044,7 @@ ContinueInNewThread0(int (JNICALL *continuation)(void *), jlong stack_size, void
     // 创建一个线程执行JavaMain方法
     if (pthread_create(&tid, &attr, (void *(*)(void*))continuation, (void*)args) == 0) {
       void * tmp;
+      // 当前线程一直阻塞在这里, 直到执行JavaMain函数的线程完成执行
       pthread_join(tid, &tmp);
       rslt = (int)tmp;
     } else {

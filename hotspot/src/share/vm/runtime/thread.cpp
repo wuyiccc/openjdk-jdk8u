@@ -3338,6 +3338,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
   if (!is_supported_jni_version(args->version)) return JNI_EVERSION;
 
   // Initialize the output stream module
+  // 初始化输出流模块
   ostream_init();
 
   // Process java launcher properties.
@@ -3378,6 +3379,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
 #endif /* USDT2 */
 
   // Record VM creation timing statistics
+  // 记录虚拟机的创建时间
   TraceVmCreationTime create_vm_timer;
   create_vm_timer.start();
 
@@ -3386,6 +3388,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
 
   // Initialize the os module after parsing the args
   // init2函数初始化
+  // 解析args后对内存,栈,线程等与os模块密切相关的部分进行初始化
   jint os_init_2_result = os::init_2();
   if (os_init_2_result != JNI_OK) return os_init_2_result;
 
@@ -3393,9 +3396,11 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
   if (adjust_after_os_result != JNI_OK) return adjust_after_os_result;
 
   // intialize TLS
+  // 初始化tls
   ThreadLocalStorage::init();
 
   // Initialize output stream logging
+  // 初始化输出流记录
   ostream_init_log();
 
   // Convert -Xrun to -agentlib: if there is no JVM_OnLoad
@@ -3419,7 +3424,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
   _number_of_non_daemon_threads = 0;
 
   // Initialize global data structures and create system classes in heap
-  // 初始化全局数据结构
+  // 初始化全局数据结构, 并在堆上创建系统类
   vm_init_globals();
 
   // Attach the main thread to this os thread
@@ -3452,6 +3457,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
   main_thread->create_stack_guard_pages();
 
   // Initialize Java-Level synchronization subsystem
+  // 初始化java语言层面的同步系统
   ObjectMonitor::Initialize() ;
 
   // Initialize global modules
@@ -3535,7 +3541,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
     }
 
     initialize_class(vmSymbols::java_lang_String(), CHECK_0);
-
+    // 初始化java的一些基础类库
     // Initialize java_lang.System (needed before creating the thread)
     initialize_class(vmSymbols::java_lang_System(), CHECK_0);
     initialize_class(vmSymbols::java_lang_ThreadGroup(), CHECK_0);
@@ -3614,6 +3620,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
 
   // record VM initialization completion time
 #if INCLUDE_MANAGEMENT
+  // 记录虚拟机初始化完成时间
   Management::record_vm_init_completed();
 #endif // INCLUDE_MANAGEMENT
 
@@ -3649,10 +3656,12 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
   JvmtiExport::enter_live_phase();
 
   // Signal Dispatcher needs to be started before VMInit event is posted
+  // 初始化os模块系统, 这样虚拟机才可以向os发送相应的信号信息
   os::signal_init();
 
   // Start Attach Listener if +StartAttachListener or it can't be started lazily
   if (!DisableAttachMechanism) {
+  // 启动attach listener线程
     AttachListener::vm_start();
     if (StartAttachListener || AttachListener::init_at_startup()) {
       AttachListener::init();
@@ -3677,6 +3686,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
 
   // initialize compiler(s)
 #if defined(COMPILER1) || defined(COMPILER2) || defined(SHARK)
+// 初始化即时编译器
   CompileBroker::compilation_init();
 #endif
 
@@ -3691,6 +3701,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
   }
 
 #if INCLUDE_MANAGEMENT
+// 初始化management模块
   Management::initialize(THREAD);
 #endif // INCLUDE_MANAGEMENT
 
@@ -3725,6 +3736,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
       MutexLockerEx ml(PeriodicTask_lock, Mutex::_no_safepoint_check_flag);
       // Make sure the watcher thread can be started by WatcherThread::start()
       // or by dynamic enrollment.
+      // 启动watcherThread线程, 用以支持定时器等周期性任务
       WatcherThread::make_startable();
       // Start up the WatcherThread if there are any periodic tasks
       // NOTE:  All PeriodicTasks should be registered by now. If they

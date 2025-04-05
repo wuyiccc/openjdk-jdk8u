@@ -5068,12 +5068,13 @@ void os::init(void) {
   // via the sun.java.launcher.pid property.
   // Use this property instead of getpid() if it was correctly passed.
   // See bug 6351349.
+  // 获取当前进程id
   pid_t java_launcher_pid = (pid_t) Arguments::sun_java_launcher_pid();
 
   _initial_pid = (java_launcher_pid > 0) ? java_launcher_pid : getpid();
 
   clock_tics_per_sec = sysconf(_SC_CLK_TCK);
-
+  // 初始化随机数
   init_random(1234567);
 
   ThreadCritical::initialize();

@@ -132,7 +132,7 @@ address dummy_invocation_counter_overflow(methodHandle m, TRAPS) {
   ShouldNotReachHere();
   return NULL;
 }
-
+// 触发编译的条件: 调用计数器
 void InvocationCounter::reinitialize(bool delay_overflow) {
   // define states
   guarantee((int)number_of_states <= (int)state_limit, "adjust number_of_state_bits");
@@ -150,6 +150,7 @@ void InvocationCounter::reinitialize(bool delay_overflow) {
   // methodData counter, rather than an InvocationCounter.  In the former case, we
   // don't need the shift by number_of_noncount_bits, but we do need to adjust
   // the factor by which we scale the threshold.
+  // 回边计数器阈值判定
   if (ProfileInterpreter) {
     InterpreterBackwardBranchLimit = (CompileThreshold * (OnStackReplacePercentage - InterpreterProfilePercentage)) / 100;
   } else {

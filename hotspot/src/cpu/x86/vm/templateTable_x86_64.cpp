@@ -1175,6 +1175,7 @@ void TemplateTable::swap() {
 }
 
 void TemplateTable::iop2(Operation op) {
+  // 校验执行前后的TosState是否符合要求, 这里校验必须是int
   transition(itos, itos);
   switch (op) {
   case add  :                    __ pop_i(rdx); __ addl (rax, rdx); break;

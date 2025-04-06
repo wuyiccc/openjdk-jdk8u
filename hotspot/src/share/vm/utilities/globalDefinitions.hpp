@@ -825,7 +825,7 @@ class JavaValue {
 // of stack (in memory) and thus not cached. The atos state corresponds to the itos
 // state when it comes to machine representation but is used separately for (oop)
 // type specific operations (e.g. verification code).
-
+// 栈顶缓存状态, 用于描述指令执行前后top-of-stack的状态
 enum TosState {         // describes the tos cache contents
   btos = 0,             // byte, bool tos cached
   ztos = 1,             // byte, bool tos cached
@@ -932,6 +932,7 @@ enum MethodCompilation {
 };
 
 // Enumeration to distinguish tiers of compilation
+// 分层编译层级
 enum CompLevel {
   CompLevel_any               = -1,
   CompLevel_all               = -1,

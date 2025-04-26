@@ -678,6 +678,9 @@ size_t os::Linux::default_stack_size(os::ThreadType thr_type) {
 size_t os::Linux::default_guard_size(os::ThreadType thr_type) {
   // Creating guard page is very expensive. Java thread has HotSpot
   // guard page, only enable glibc guard page for non-Java threads.
+  // 仅仅对非java线程开启警戒缓存, 缓存大小为1页,
+  // 对于java线程来说, 操作系统准备警戒缓存毫无意义, 反而浪费缓存空间, 所以pthread_attr_setguardsize()会将其指定为0
+  // java线程自己另行准备了警戒缓存
   return (thr_type == java_thread ? 0 : page_size());
 }
 

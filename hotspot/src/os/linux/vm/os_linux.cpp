@@ -791,6 +791,7 @@ static bool _thread_safety_check(Thread* thread) {
 }
 
 // Thread start routine for all newly created threads
+// 由于在linux中无法生成暂停状态的线程, 所以java_start()会立即被执行
 static void *java_start(Thread *thread) {
   // Try to randomize the cache line index of hot stack frames.
   // This helps when threads of the same stack traces evict each other's
@@ -860,6 +861,7 @@ bool os::create_thread(Thread* thread, ThreadType thr_type, size_t stack_size) {
   assert(thread->osthread() == NULL, "caller responsible");
 
   // Allocate the OSThread object
+  // 创建OSThread实例
   OSThread* osthread = new OSThread(NULL, NULL);
   if (osthread == NULL) {
     return false;
@@ -878,6 +880,7 @@ bool os::create_thread(Thread* thread, ThreadType thr_type, size_t stack_size) {
   // init thread attributes
   pthread_attr_t attr;
   pthread_attr_init(&attr);
+  // 设置线程处于分离状态, 防止忘记join, 导致出现僵尸线程
   pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
   // stack size
@@ -915,6 +918,8 @@ bool os::create_thread(Thread* thread, ThreadType thr_type, size_t stack_size) {
   }
 
   // glibc guard page
+  // 指定栈警戒缓存的大小
+  // 当发生栈溢出的时候, 访问这块警戒缓存就会发出segv信号, 访问操作系统的境界缓存就等于栈溢出了
   pthread_attr_setguardsize(&attr, os::Linux::default_guard_size(thr_type));
 
   ThreadState state;
@@ -957,6 +962,7 @@ bool os::create_thread(Thread* thread, ThreadType thr_type, size_t stack_size) {
     {
       Monitor* sync_with_child = osthread->startThread_lock();
       MutexLockerEx ml(sync_with_child, Mutex::_no_safepoint_check_flag);
+      // 当创建出来的线程准备就绪，且线程的处理实际开始之下后会退出while循环
       while ((state = osthread->get_state()) == ALLOCATED) {
         sync_with_child->wait(Mutex::_no_safepoint_check_flag);
       }

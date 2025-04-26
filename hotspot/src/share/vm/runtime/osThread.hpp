@@ -42,14 +42,23 @@
 // Uses of ThreadState need to be replaced by the state in the JavaThread.
 
 enum ThreadState {
+// 已经分配但还未初始化的状态
   ALLOCATED,                    // Memory has been allocated but not initialized
+// 已经初始化但处理还未开始的状态
   INITIALIZED,                  // The thread has been initialized but yet started
+// 处理已经开始, 可以启动的状态
   RUNNABLE,                     // Has been started and is runnable, but not necessarily running
+// 等待监视器锁争用
   MONITOR_WAIT,                 // Waiting on a contended monitor lock
+// 等待条件变量
   CONDVAR_WAIT,                 // Waiting on a condition variable
+// 等待Object.wait()的调用
   OBJECT_WAIT,                  // Waiting on an Object.wait() call
+// 停止在断电处
   BREAKPOINTED,                 // Suspended at breakpoint
+// Thread.sleep()中
   SLEEPING,                     // Thread.sleep()
+// 虽然满足条件, 但还未回收的状态
   ZOMBIE                        // All done, but not reclaimed yet
 };
 

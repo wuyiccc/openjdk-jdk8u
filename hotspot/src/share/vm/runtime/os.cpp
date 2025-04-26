@@ -782,6 +782,7 @@ void os::start_thread(Thread* thread) {
   // guard suspend/resume
   MutexLockerEx ml(thread->SR_lock(), Mutex::_no_safepoint_check_flag);
   OSThread* osthread = thread->osthread();
+  // 设置线程状态为runnable, 让java_start方法后续执行
   osthread->set_state(RUNNABLE);
   pd_start_thread(thread);
 }

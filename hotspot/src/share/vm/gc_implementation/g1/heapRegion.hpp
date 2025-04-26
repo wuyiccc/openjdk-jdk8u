@@ -111,6 +111,7 @@ public:
 // evacuation pauses between two cleanups, which is _highly_ unlikely.
 class G1OffsetTableContigSpace: public CompactibleSpace {
   friend class VMStructs;
+  // _top保存着区域内的空闲内存空间的头地址
   HeapWord* _top;
   HeapWord* volatile _scan_top;
  protected:
@@ -228,6 +229,7 @@ class HeapRegion: public G1OffsetTableContigSpace {
   HeapWord* _orig_end;
 
   // True iff the region is in current collection_set.
+  // 表示当前区域是否属于回收集合内的区域
   bool _in_collection_set;
 
   // True iff an attempt to evacuate an object in the region failed.
@@ -237,9 +239,12 @@ class HeapRegion: public G1OffsetTableContigSpace {
   // represented as linked lists through the field below.  Currently, there
   // is only one set:
   //   The collection set.
+  // 当区域属于空闲列表的时候, 这个指针指向下一个空闲区域
+  // 当区域属于回收集合链表的时候, 这个指针指向下一个回收区域
   HeapRegion* _next_in_special_set;
 
   // next region in the young "generation" region set
+  // 指向下一个新生代区域
   HeapRegion* _next_young_region;
 
   // Next region whose cards need cleaning

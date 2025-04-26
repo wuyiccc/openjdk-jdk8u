@@ -1742,6 +1742,7 @@ HeapWord* G1CollectedHeap::expand_and_allocate(size_t word_size, AllocationConte
 }
 
 bool G1CollectedHeap::expand(size_t expand_bytes) {
+// 将expand_bytes以区域大小为边界向上对齐, 将结果赋值给aligned_expand_bytes
   size_t aligned_expand_bytes = ReservedSpace::page_align_size_up(expand_bytes);
   aligned_expand_bytes = align_size_up(aligned_expand_bytes,
                                        HeapRegion::GrainBytes);
@@ -1992,7 +1993,7 @@ jint G1CollectedHeap::initialize() {
   _g1_rem_set = new G1RemSet(this, g1_barrier_set());
 
   // Carve out the G1 part of the heap.
-
+  // g1常驻空间
   ReservedSpace g1_rs = heap_rs.first_part(max_byte_size);
   G1RegionToSpaceMapper* heap_storage =
     G1RegionToSpaceMapper::create_mapper(g1_rs,
@@ -2069,6 +2070,7 @@ jint G1CollectedHeap::initialize() {
   HeapRegionRemSet::init_heap(max_regions());
 
   // Now expand into the initial heap size.
+  // 进行实际的内存分配处理
   if (!expand(init_byte_size)) {
     vm_shutdown_during_initialization("Failed to allocate initial heap.");
     return JNI_ENOMEM;

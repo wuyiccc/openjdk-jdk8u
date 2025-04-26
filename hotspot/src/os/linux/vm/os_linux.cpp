@@ -3294,7 +3294,7 @@ static address _highest_vm_reserved_address = NULL;
 static char* anon_mmap(char* requested_addr, size_t bytes, bool fixed) {
   char * addr;
   int flags;
-
+  // MAP_NORESERVE 表示不向SWAP申请交换空间
   flags = MAP_PRIVATE | MAP_NORESERVE | MAP_ANONYMOUS;
   if (fixed) {
     // 如果fixed==true, 那么要求分配的内存基地址从request_addr开始, 如果这个基地址被占用

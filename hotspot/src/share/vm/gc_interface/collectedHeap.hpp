@@ -77,9 +77,9 @@ class GCHeapLog : public EventLogBase<GCMessage> {
 //
 // CollectedHeap
 //   SharedHeap
-//     GenCollectedHeap
-//     G1CollectedHeap
-//   ParallelScavengeHeap
+//     GenCollectedHeap: serialgc, incgc(增量gc),cms
+//     G1CollectedHeap: g1gc
+//   ParallelScavengeHeap: ParallelGC
 //
 // 是内存堆管理器的抽象基类, 表示一个java堆, 定义了各种垃圾收集器必须实现的公共接口
 class CollectedHeap : public CHeapObj<mtInternal> {

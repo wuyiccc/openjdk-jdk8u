@@ -216,6 +216,7 @@ InCSetState G1ParScanThreadState::next_state(InCSetState const state, markOop co
 oop G1ParScanThreadState::copy_to_survivor_space(InCSetState const state,
                                                  oop const old,
                                                  markOop const old_mark) {
+  // 计算对象大小
   const size_t word_sz = old->size();
   HeapRegion* const from_region = _g1h->heap_region_containing_raw(old);
   // +1 to make the -1 indexes valid...
@@ -226,6 +227,7 @@ oop G1ParScanThreadState::copy_to_survivor_space(InCSetState const state,
 
   uint age = 0;
   InCSetState dest_state = next_state(state, old_mark, age);
+  // 分配一个同样大小的新对象
   HeapWord* obj_ptr = _g1_par_allocator->plab_allocate(dest_state, word_sz, context);
 
   // PLAB allocations should succeed most of the time, so we'll
@@ -259,10 +261,13 @@ oop G1ParScanThreadState::copy_to_survivor_space(InCSetState const state,
 
   // We're going to allocate linearly, so might as well prefetch ahead.
   Prefetch::write(obj_ptr, PrefetchCopyIntervalInBytes);
-
+  // 分配
   const oop obj = oop(obj_ptr);
+  // 创建前向指针, 如果在中途中有其他线程先进行了复制, 那么它会返回null
+  //
   const oop forward_ptr = old->forward_to_atomic(obj);
   if (forward_ptr == NULL) {
+  // 如果转发成功, 则执行对象的复制
     Copy::aligned_disjoint_words((HeapWord*) old, obj_ptr, word_sz);
 
     if (dest_state.is_young()) {
@@ -312,6 +317,7 @@ oop G1ParScanThreadState::copy_to_survivor_space(InCSetState const state,
       _scanner.set_region(to_region);
       obj->oop_iterate_backwards(&_scanner);
     }
+    // 返回复制出的对象的内存地址
     return obj;
   } else {
     _g1_par_allocator->undo_allocation(dest_state, obj_ptr, word_sz, context);

@@ -32,9 +32,12 @@
 class ReservedSpace VALUE_OBJ_CLASS_SPEC {
   friend class VMStructs;
  private:
+ // 申请到的内存空间的头地址
   char*  _base;
+  // 内存空间大小
   size_t _size;
   size_t _noaccess_prefix;
+  // 内存空间对齐后的值
   size_t _alignment;
   bool   _special;
   bool   _executable;

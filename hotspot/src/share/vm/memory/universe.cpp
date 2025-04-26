@@ -150,6 +150,7 @@ bool            Universe::_fully_initialized = false;
 size_t          Universe::_heap_capacity_at_last_gc;
 size_t          Universe::_heap_used_at_last_gc = 0;
 
+// 存储合适的堆类的实例
 CollectedHeap*  Universe::_collectedHeap = NULL;
 
 NarrowPtrStruct Universe::_narrow_oop = { NULL, 0, true };

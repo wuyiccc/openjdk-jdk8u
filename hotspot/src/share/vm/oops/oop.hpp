@@ -320,6 +320,7 @@ class oopDesc {
   // Exactly one thread succeeds in inserting the forwarding pointer, and
   // this call returns "NULL" for that thread; any other thread has the
   // value of the forwarding pointer returned and does not modify "this".
+  // 如果调用线程转发成功则返回null, 其他未调用成功的返回转发的目标地址
   oop forward_to_atomic(oop p);
 #endif // INCLUDE_ALL_GCS
 

@@ -35,8 +35,10 @@
 inline HeapWord* G1OffsetTableContigSpace::allocate_impl(size_t size,
                                                 HeapWord* const end_value) {
   HeapWord* obj = top();
+  // 以字为单位返回给两个给定地址之间的差值, 即区域内可用内存空间的头地址的_top和end_value之间的差值
   if (pointer_delta(end_value, obj) >= size) {
     HeapWord* new_top = obj + size;
+    // 移动top
     set_top(new_top);
     assert(is_aligned(obj) && is_aligned(new_top), "checking alignment");
     return obj;

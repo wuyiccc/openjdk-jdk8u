@@ -141,6 +141,7 @@ void HeapRegionManager::make_regions_available(uint start, uint num_regions) {
     MemRegion mr(bottom, bottom + HeapRegion::GrainWords);
 
     hr->initialize(mr);
+    // 插入到空闲列表
     insert_into_free_list(at(i));
   }
 }

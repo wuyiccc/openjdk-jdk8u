@@ -58,6 +58,9 @@ inline oop oopDesc::forward_to_atomic(oop p) {
   assert(ParNewGeneration::is_legal_forward_ptr(p),
          "illegal forwarding pointer value.");
   markOop oldMark = mark();
+  //这里利用新对象的地址构建处一个markOopDesc (ptr|11)
+  // 这里其实是将p地址的值作为了markOopDesc, 本质上markOopDesc也是一个uintptr_t类型, 所以直接存储p地址是没问题了
+  // 然后因为地址对齐的缘故, p地址的低2位一定为0(可以用来存储其他数据), 所以将这2位设置为1(设置标记位), 代表已复制
   markOop forwardPtrMark = markOopDesc::encode_pointer_as_mark(p);
   markOop curMark;
 
@@ -65,6 +68,7 @@ inline oop oopDesc::forward_to_atomic(oop p) {
   assert(sizeof(markOop) == sizeof(intptr_t), "CAS below requires this.");
 
   while (!oldMark->is_marked()) {
+    // 写入被复制对象的mark
     curMark = (markOop)Atomic::cmpxchg_ptr(forwardPtrMark, &_mark, oldMark);
     assert(is_forwarded(), "object should have been forwarded");
     if (curMark == oldMark) {

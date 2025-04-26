@@ -262,6 +262,7 @@ private:
   G1RegionMappingChangedListener _listener;
 
   // The sequence of all heap regions in the heap.
+  // 通过数组维护所有的HeapRegion
   HeapRegionManager _hrm;
 
   // Class that handles the different kinds of allocations.
@@ -449,6 +450,7 @@ private:
 protected:
 
   // The young region list.
+  // 新生代HeapRegion的链表
   YoungList*  _young_list;
 
   // The current policy object for the collector.

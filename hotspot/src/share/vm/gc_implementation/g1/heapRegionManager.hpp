@@ -68,6 +68,7 @@ class G1HeapRegionTable : public G1BiasedMappedArray<HeapRegion*> {
 class HeapRegionManager: public CHeapObj<mtGC> {
   friend class VMStructs;
 
+  // 自动扩容数组, 数组内region排序按照各区域头地址升序排列
   G1HeapRegionTable _regions;
 
   G1RegionToSpaceMapper* _heap_mapper;
@@ -76,7 +77,7 @@ class HeapRegionManager: public CHeapObj<mtGC> {
   G1RegionToSpaceMapper* _bot_mapper;
   G1RegionToSpaceMapper* _cardtable_mapper;
   G1RegionToSpaceMapper* _card_counts_mapper;
-
+  // 空闲列表
   FreeRegionList _free_list;
 
   // Each bit in this bitmap indicates that the corresponding region is available

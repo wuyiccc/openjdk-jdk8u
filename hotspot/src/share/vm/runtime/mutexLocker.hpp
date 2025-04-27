@@ -188,6 +188,7 @@ class MutexLocker: StackObj {
     assert(mutex->rank() != Mutex::special,
       "Special ranked mutex should only use MutexLockerEx");
     _mutex = mutex;
+    // 在构造函数内锁定_mutex, 在析构函数内解锁_mutex
     _mutex->lock();
   }
 

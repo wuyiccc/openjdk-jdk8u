@@ -637,6 +637,7 @@ protected:
   volatile int _TypeTag ;
   ParkEvent * _ParkEvent ;                     // for synchronized()
   ParkEvent * _SleepEvent ;                    // for Thread.sleep
+  // 通过调用该对象的park和unpark可以暂停或者是重新启动目标线程
   ParkEvent * _MutexEvent ;                    // for native internal Mutex/Monitor
   ParkEvent * _MuxEvent ;                      // for low-level muxAcquire-muxRelease
   int NativeSyncRecursion ;                    // diagnostic

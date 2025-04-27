@@ -79,6 +79,7 @@ bool WorkGang::initialize_workers() {
                   name(),
                   total_workers());
   }
+  // 按照期望的数量创建一个工人数组
   _gang_workers = NEW_C_HEAP_ARRAY(GangWorker*, total_workers(), mtInternal);
   if (gang_workers() == NULL) {
     vm_exit_out_of_memory(0, OOM_MALLOC_ERROR, "Cannot create GangWorker array.");
@@ -91,6 +92,7 @@ bool WorkGang::initialize_workers() {
     worker_type = os::pgc_thread;
   }
   for (uint worker = 0; worker < total_workers(); worker += 1) {
+    // 创建工人
     GangWorker* new_worker = allocate_worker(worker);
     assert(new_worker != NULL, "Failed to allocate GangWorker");
     _gang_workers[worker] = new_worker;
@@ -100,6 +102,7 @@ bool WorkGang::initialize_workers() {
       return false;
     }
     if (!DisableStartThread) {
+      // 这里让work开始执行worker.run()方法 (thread->run())
       os::start_thread(new_worker);
     }
   }
@@ -144,6 +147,7 @@ void WorkGang::run_task(AbstractGangTask* task, uint no_of_parallel_workers) {
   // Tell all the workers to run a task.
   assert(task != NULL, "Running a null task");
   // Initialize.
+  // 提交任务
   _task = task;
   _sequence_number += 1;
   _started_workers = 0;
@@ -151,6 +155,7 @@ void WorkGang::run_task(AbstractGangTask* task, uint no_of_parallel_workers) {
   // Tell the workers to get to work.
   monitor()->notify_all();
   // Wait for them to be finished
+  // 检测任务是否被GangWork执行完成
   while (finished_workers() < no_of_parallel_workers) {
     if (TraceWorkGang) {
       tty->print_cr("Waiting in work gang %s: %d/%d finished sequence %d",
@@ -239,6 +244,7 @@ GangWorker::GangWorker(AbstractWorkGang* gang, uint id) {
 
 void GangWorker::run() {
   initialize();
+  // 调用loop函数
   loop();
 }
 
@@ -292,6 +298,7 @@ void GangWorker::loop() {
           return;
         }
         // Check for new work.
+        // 检查是否有任务, 如果有, 则通过break语句退出循环
         if ((data.task() != NULL) &&
             (data.sequence_number() != previous_sequence_number)) {
           if (gang()->needs_more_workers()) {
@@ -302,6 +309,7 @@ void GangWorker::loop() {
           }
         }
         // Nothing to do.
+        // 解锁, 进入等候室等待
         gang_monitor->wait(/* no_safepoint_check */ true);
         gang()->internal_worker_poll(&data);
         if (TraceWorkGang) {

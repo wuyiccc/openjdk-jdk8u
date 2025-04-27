@@ -6058,6 +6058,7 @@ void os::PlatformEvent::park() {       // AKA "down()"
      guarantee (_nParked == 0, "invariant") ;
      ++ _nParked ;
      while (_Event < 0) {
+        // cond 条件变量 mutex互斥变量
         status = pthread_cond_wait(_cond, _mutex);
         // for some reason, under 2.7 lwp_cond_wait() may return ETIME ...
         // Treat this the same as if the wait was interrupted
@@ -6165,6 +6166,7 @@ void os::PlatformEvent::unpark() {
   assert(AnyWaiters == 0 || AnyWaiters == 1, "invariant");
   if (AnyWaiters != 0 && WorkAroundNPTLTimedWaitHang) {
     AnyWaiters = 0;
+    // 对在指定条件变量上等待的一个线程发送信号
     pthread_cond_signal(_cond);
   }
   status = pthread_mutex_unlock(_mutex);

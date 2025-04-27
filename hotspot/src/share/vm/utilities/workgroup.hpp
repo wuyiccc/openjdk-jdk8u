@@ -53,10 +53,12 @@ class AbstractWorkGang;
 
 // An abstract task to be worked on by a gang.
 // You subclass this to supply your own work() method
+// 让工人执行的任务
 class AbstractGangTask VALUE_OBJ_CLASS_SPEC {
 public:
   // The abstract work method.
   // The argument tells you which member of the gang you are.
+  // 负责执行任务的函数, 它接收工人的编号作为参数
   virtual void work(uint worker_id) = 0;
 
   // This method configures the task for proper termination.
@@ -112,6 +114,7 @@ class AbstractGangTaskWOopQueues : public AbstractGangTask {
 // Class AbstractWorkGang:
 // An abstract class representing a gang of workers.
 // You subclass this to supply an implementation of run_task().
+// 工人集合
 class AbstractWorkGang: public CHeapObj<mtInternal> {
   // Here's the public interface to this class.
 public:
@@ -120,6 +123,7 @@ public:
                    bool are_ConcurrentGC_threads);
   ~AbstractWorkGang();
   // Run a task, returns when the task is done (or terminated).
+  // 负责将任务交给worker并让它们执行任务
   virtual void run_task(AbstractGangTask* task) = 0;
   // Stop and terminate all workers.
   virtual void stop();
@@ -136,6 +140,7 @@ protected:
   const char* _name;
   // The monitor which protects these data,
   // and notifies of changes in it.
+  // 保护后来定义的数据, 或是通知变化的监视器
   Monitor*  _monitor;
   // The count of the number of workers in the gang.
   uint _total_workers;
@@ -143,14 +148,19 @@ protected:
   bool _terminate;
   // The array of worker threads for this gang.
   // This is only needed for cleaning up.
+  // 属于这个团体的工人的数组
   GangWorker** _gang_workers;
   // The task for this gang.
+  // 分配给这个团体的任务
   AbstractGangTask* _task;
   // A sequence number for the current task.
+  // 当前任务的编号
   int _sequence_number;
   // The number of started workers.
+  // 执行任务的工人总数
   uint _started_workers;
   // The number of finished workers.
+  // 完成任务的工人总数
   uint _finished_workers;
 public:
   // Accessors for fields
@@ -259,6 +269,7 @@ public:
 
 // Class GangWorker:
 //   Several instances of this class run in parallel as workers for a gang.
+// 执行指定任务的工人
 class GangWorker: public WorkerThread {
 public:
   // Constructors and destructor.
@@ -273,6 +284,7 @@ public:
   void print_on(outputStream* st) const;
   virtual void print() const { print_on(tty); }
 protected:
+  // 存放着自身所属的bstractWorkGang
   AbstractWorkGang* _gang;
 
   virtual void initialize();

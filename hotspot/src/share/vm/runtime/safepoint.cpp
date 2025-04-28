@@ -185,6 +185,8 @@ void SafepointSynchronize::begin() {
     // more-general mechanism below.  DLD (01/05).
     ConcurrentMarkSweepThread::synchronize(false);
   } else if (UseG1GC) {
+  // 通过SuspendibleThreadSe可暂停的线程集合来实现安全点的方法, 所有在该结合内的线程都会在接受到暂停
+  // 通知之后实现自我暂停, 然后本线程阻塞等到所有线程暂停完毕之后继续执行
     SuspendibleThreadSet::synchronize();
   }
 #endif // INCLUDE_ALL_GCS
@@ -616,6 +618,7 @@ void SafepointSynchronize::end() {
   if (UseConcMarkSweepGC) {
     ConcurrentMarkSweepThread::desynchronize(false);
   } else if (UseG1GC) {
+  // 结束暂停标记, SuspendibleThreadSet集合内的线程可以继续执行了
     SuspendibleThreadSet::desynchronize();
   }
 #endif // INCLUDE_ALL_GCS

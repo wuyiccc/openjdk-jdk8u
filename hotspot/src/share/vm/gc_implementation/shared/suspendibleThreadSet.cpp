@@ -78,6 +78,7 @@ void SuspendibleThreadSet::synchronize() {
   }
   MonitorLockerEx ml(STS_lock, Mutex::_no_safepoint_check_flag);
   assert(!_suspend_all, "Only one at a time");
+  // 设置_suspend_all标记位
   _suspend_all = true;
   while (_nthreads_stopped < _nthreads) {
     ml.wait(Mutex::_no_safepoint_check_flag);
@@ -88,6 +89,7 @@ void SuspendibleThreadSet::desynchronize() {
   assert(Thread::current()->is_VM_thread(), "Must be the VM thread");
   MonitorLockerEx ml(STS_lock, Mutex::_no_safepoint_check_flag);
   assert(_nthreads_stopped == _nthreads, "Invalid");
+  // 复位_suspend_all位false, 代表线程集合内部的线程可以继续执行了
   _suspend_all = false;
   ml.notify_all();
 }

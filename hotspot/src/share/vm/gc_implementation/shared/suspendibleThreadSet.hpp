@@ -35,6 +35,7 @@
 // may not enter the set when an attempted suspension is in progress. The
 // suspending thread later calls desynchronize(), allowing the suspended
 // threads to continue.
+// 管理能够暂停的线程的集合
 class SuspendibleThreadSet : public AllStatic {
 private:
   static uint   _nthreads;

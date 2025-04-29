@@ -395,7 +395,7 @@ void Universe::genesis(TRAPS) {
     // and we find out if we actually update all the oops correctly.
     // But we can't allocate directly in the old generation,
     // so we allocate wherever, and hope that the first collection
-    // moves these objects to the bottom of the old generation.
+    // moves these objects to the bottom of the old generationInstanceKlass::allocate_instance.
     // We can allocate directly in the permanent generation, so we do.
     int size;
     if (UseConcMarkSweepGC) {

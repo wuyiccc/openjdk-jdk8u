@@ -48,7 +48,7 @@ ConcurrentG1Refine::ConcurrentG1Refine(G1CollectedHeap* g1h, CardTableEntryClosu
     FLAG_SET_DEFAULT(G1ConcRefinementRedZone, yellow_zone() * 2);
   }
   set_red_zone(MAX2<int>(G1ConcRefinementRedZone, yellow_zone()));
-
+  // 通过设置G1ConcRefineThreads的值来改变这个thread_num()的返回结果
   _n_worker_threads = thread_num();
   // We need one extra thread to do the young gen rset size sampling.
   _n_threads = _n_worker_threads + 1;

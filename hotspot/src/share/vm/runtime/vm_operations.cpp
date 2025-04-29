@@ -58,6 +58,7 @@ void VM_Operation::evaluate() {
     tty->print("[");
     NOT_PRODUCT(print();)
   }
+  // 执行operation的doit操作
   doit();
   if (TraceVMOperation) {
     tty->print_cr("]");

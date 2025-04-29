@@ -95,6 +95,7 @@ void VM_G1IncCollectionPause::doit() {
 
   if (_word_size > 0) {
     // An allocation has been requested. So, try to do that first.
+    // 往新分配的空区域中分配内存
     _result = g1h->attempt_allocation_at_safepoint(_word_size, allocation_context(),
                                      false /* expect_null_cur_alloc_region */);
     if (_result != NULL) {

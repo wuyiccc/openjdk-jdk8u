@@ -281,6 +281,7 @@ void G1RootProcessor::process_vm_roots(OopClosure* strong_roots,
                                        uint worker_i) {
   {
     G1GCParPhaseTimesTracker x(phase_times, G1GCPhaseTimes::UniverseRoots, worker_i);
+    // cas的方式领取任务并执行, 同一时间只能有一个线程执行该任务
     if (!_process_strong_tasks.is_task_claimed(G1RP_PS_Universe_oops_do)) {
       Universe::oops_do(strong_roots);
     }

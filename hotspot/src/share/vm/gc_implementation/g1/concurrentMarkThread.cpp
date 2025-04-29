@@ -75,7 +75,7 @@ public:
 };
 
 
-
+// 实现了一次并发标记周期
 void ConcurrentMarkThread::run() {
   initialize_in_thread();
   _vtime_start = os::elapsedVTime();
@@ -88,6 +88,7 @@ void ConcurrentMarkThread::run() {
 
   while (!_should_terminate) {
     // wait until started is set.
+    // 等待开始
     sleepBeforeNextCycle();
     if (_should_terminate) {
       break;
@@ -133,12 +134,14 @@ void ConcurrentMarkThread::run() {
       do {
         iter++;
         if (!cm()->has_aborted()) {
+        // 2. 并发标记阶段
           _cm->markFromRoots();
         }
 
         double mark_end_time = os::elapsedVTime();
         double mark_end_sec = os::elapsedTime();
         _vtime_mark_accum += (mark_end_time - cycle_start);
+        // 3. 最终标记阶段
         if (!cm()->has_aborted()) {
           if (g1_policy->adaptive_young_list_length()) {
             double now = os::elapsedTime();
@@ -174,7 +177,7 @@ void ConcurrentMarkThread::run() {
       // to measure it to get the vtime for this marking.  We purposely
       // neglect the presumably-short "completeCleanup" phase here.
       _vtime_accum = (end_time - _vtime_start);
-
+      // 5. 收尾
       if (!cm()->has_aborted()) {
         if (g1_policy->adaptive_young_list_length()) {
           double now = os::elapsedTime();
@@ -264,7 +267,6 @@ void ConcurrentMarkThread::run() {
           g1_policy->record_concurrent_mark_cleanup_completed();
         }
       }
-
       if (cm()->has_aborted()) {
         if (G1Log::fine()) {
           gclog_or_tty->gclog_stamp(cm()->concurrent_gc_id());
@@ -332,9 +334,10 @@ void ConcurrentMarkThread::sleepBeforeNextCycle() {
   // We join here because we don't want to do the "shouldConcurrentMark()"
   // below while the world is otherwise stopped.
   assert(!in_progress(), "should have been cleared");
-
+  // 并发标记线程会锁住CGC_lock这个全局的mutator
   MutexLockerEx x(CGC_lock, Mutex::_no_safepoint_check_flag);
   while (!started() && !_should_terminate) {
+  // 进入等待状态
     CGC_lock->wait(Mutex::_no_safepoint_check_flag);
   }
 

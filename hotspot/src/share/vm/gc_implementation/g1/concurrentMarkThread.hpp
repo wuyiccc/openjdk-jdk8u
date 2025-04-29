@@ -52,7 +52,7 @@ class ConcurrentMarkThread: public ConcurrentGCThread {
     Started,
     InProgress
   };
-
+  // 线程运行状态
   volatile State _state;
 
   void sleepBeforeNextCycle();

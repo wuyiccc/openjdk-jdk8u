@@ -71,6 +71,7 @@ static void pd_conjoint_words(HeapWord* from, HeapWord* to, size_t count) {
 }
 
 static void pd_disjoint_words(HeapWord* from, HeapWord* to, size_t count) {
+// 对于AMD64架构的复制会执行如下的复制代码, 非AMD64架构的会执行汇编指令进行复制
 #ifdef AMD64
   switch (count) {
   case 8:  to[7] = from[7];

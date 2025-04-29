@@ -384,8 +384,11 @@ class ConcurrentMark: public CHeapObj<mtGC> {
   friend class G1CMDrainMarkingStackClosure;
 
 protected:
+  // 并发标记线程
   ConcurrentMarkThread* _cmThread;   // the thread doing the work
+  //
   G1CollectedHeap*      _g1h;        // the heap.
+  // 并行标记中要使用的线程数
   uint                  _parallel_marking_threads; // the number of marking
                                                    // threads we're use
   uint                  _max_parallel_marking_threads; // max number of marking

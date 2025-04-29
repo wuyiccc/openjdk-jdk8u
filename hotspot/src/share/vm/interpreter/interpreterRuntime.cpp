@@ -149,7 +149,7 @@ IRT_END
 
 //------------------------------------------------------------------------------------------------------------------------
 // Allocation
-
+// new指令创建对象
 IRT_ENTRY(void, InterpreterRuntime::_new(JavaThread* thread, ConstantPool* pool, int index))
   Klass* k_oop = pool->klass_at(index, CHECK);
   instanceKlassHandle klass (THREAD, k_oop);

@@ -1955,7 +1955,7 @@ jint G1CollectedHeap::initialize() {
   Universe::check_alignment(max_byte_size, heap_alignment, "g1 heap");
 
   _refine_cte_cl = new RefineCardTableEntryClosure();
-
+  // 创建转移专用记忆集合线程
   _cg1r = new ConcurrentG1Refine(this, _refine_cte_cl);
 
   // Reserve the maximum.
@@ -3655,6 +3655,7 @@ HeapWord* G1CollectedHeap::do_collection_pause(size_t word_size,
                              gc_cause);
 
   op.set_allocation_context(AllocationContext::current());
+  // 交给vm线程执行gc
   VMThread::execute(&op);
 
   HeapWord* result = op.result();
@@ -3671,6 +3672,7 @@ void
 G1CollectedHeap::doConcurrentMark() {
   MutexLockerEx x(CGC_lock, Mutex::_no_safepoint_check_flag);
   if (!_cmThread->in_progress()) {
+  // 修改为started,
     _cmThread->set_started();
     CGC_lock->notify();
   }
@@ -4808,6 +4810,7 @@ public:
       {
         double start = os::elapsedTime();
         G1ParEvacuateFollowersClosure evac(_g1h, &pss, _queues, &_terminator);
+        // 将转移队列中存放的对象一个接一个的转移
         evac.do_void();
         double elapsed_sec = os::elapsedTime() - start;
         double term_sec = pss.term_time();

@@ -36,11 +36,14 @@ AbsSeq::AbsSeq(double alpha) :
 void AbsSeq::add(double val) {
   if (_num == 0) {
     // if the sequence is empty, the davg is the same as the value
+    // _davg代表衰减均值
     _davg = val;
     // and the variance is 0
+    // _dvariance代表衰减方差
     _dvariance = 0.0;
   } else {
     // otherwise, calculate both
+    // _alpha默认值是0.7
     _davg = (1.0 - _alpha) * val + _alpha * _davg;
     double diff = val - _davg;
     _dvariance = (1.0 - _alpha) * diff * diff + _alpha * _dvariance;

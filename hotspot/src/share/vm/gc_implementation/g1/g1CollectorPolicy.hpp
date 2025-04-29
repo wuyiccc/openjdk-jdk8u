@@ -318,7 +318,7 @@ public:
 #ifndef PRODUCT
   bool verify_young_ages();
 #endif // PRODUCT
-
+  // davg返回的是衰减平均值, sigma是可信度, dsd返回的是衰减标准差
   double get_new_prediction(TruncatedSeq* seq) {
     return MAX2(seq->davg() + sigma() * seq->dsd(),
                 seq->davg() * confidence_factor(seq->num()));

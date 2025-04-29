@@ -882,6 +882,7 @@ void G1CollectorPolicy::record_concurrent_mark_remark_start() {
 void G1CollectorPolicy::record_concurrent_mark_remark_end() {
   double end_time_sec = os::elapsedTime();
   double elapsed_time_ms = (end_time_sec - _mark_remark_start_sec)*1000.0;
+  // 添加到历史记录中,并计算衰减平均值与衰减平均方差
   _concurrent_mark_remark_times_ms->add(elapsed_time_ms);
   _cur_mark_stop_world_time_ms += elapsed_time_ms;
   _prev_collection_pause_end_ms += elapsed_time_ms;

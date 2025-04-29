@@ -145,7 +145,9 @@ void ConcurrentMarkThread::run() {
         if (!cm()->has_aborted()) {
           if (g1_policy->adaptive_young_list_length()) {
             double now = os::elapsedTime();
+            // 获取下次执行的最终标记所消耗的时间的预测值
             double remark_prediction_ms = g1_policy->predict_remark_time_ms();
+            // 这里计算距离合适的暂停时机还有多长时间
             jlong sleep_time_ms = mmu_tracker->when_ms(now, remark_prediction_ms);
             os::sleep(current_thread, sleep_time_ms, false);
           }

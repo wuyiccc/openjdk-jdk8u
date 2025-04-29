@@ -103,7 +103,7 @@ public:
   // Debugging/Printing
   virtual void dump_on(outputStream* s);
 };
-
+// 存放历史记录的类
 class TruncatedSeq: public AbsSeq {
 private:
   enum PrivateConstants {

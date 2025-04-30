@@ -201,7 +201,8 @@ class G1OffsetTableContigSpace: public CompactibleSpace {
     _offsets.print_on(out);
   }
 };
-
+// HeapRegion的大小一般为1MB,2MB,4MB,8MB,16MB,32MB
+// 默认情况下, 整个堆的空间分位2048个HR(自动根据最小的内存分区大小计算得出)
 class HeapRegion: public G1OffsetTableContigSpace {
   friend class VMStructs;
  private:

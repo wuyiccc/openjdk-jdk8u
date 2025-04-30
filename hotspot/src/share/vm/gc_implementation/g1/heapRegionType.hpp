@@ -55,16 +55,21 @@ private:
   //
   // 01000 [ 8] Old
   typedef enum {
+    // 自由分区
     FreeTag       = 0,
-
+    // 年轻代分区
     YoungMask     = 2,
+    // 年轻代eden
     EdenTag       = YoungMask,
+    // 年轻代survivor
     SurvTag       = YoungMask + 1,
-
+    // 大对象分区
     HumMask       = 4,
+    // 大对象头分区
     HumStartsTag  = HumMask,
+    // 大对象连续分区
     HumContTag    = HumMask + 1,
-
+    // 老年代分区
     OldTag        = 8
   } Tag;
 

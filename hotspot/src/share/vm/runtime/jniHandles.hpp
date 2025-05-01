@@ -120,6 +120,7 @@ class JNIHandleBlock : public CHeapObj<mtInternal> {
   friend class CppInterpreter;
 
  private:
+ // 每一个block的长度为32, 超过32的通过_next指针形成链表
   enum SomeConstants {
     block_size_in_oops  = 32                    // Number of handles per handle block
   };
@@ -131,6 +132,7 @@ class JNIHandleBlock : public CHeapObj<mtInternal> {
   // The following instance variables are only used by the first block in a chain.
   // Having two types of blocks complicates the code and the space overhead in negligble.
   JNIHandleBlock* _last;                        // Last block in use
+  // 用来保存java线程切换方法时分配本地对象句柄的上下文环境, 从而形成调用handle的链表
   JNIHandleBlock* _pop_frame_link;              // Block to restore on PopLocalFrame call
   oop*            _free_list;                   // Handle free list
   int             _allocate_before_rebuild;     // Number of blocks to allocate before rebuilding free list

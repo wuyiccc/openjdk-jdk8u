@@ -318,9 +318,11 @@ public:
 #ifndef PRODUCT
   bool verify_young_ages();
 #endif // PRODUCT
-  // davg返回的是衰减平均值, sigma是可信度, dsd返回的是衰减标准差
+  // davg返回的是衰减平均值, sigma是可信度0.5, dsd返回的是衰减标准差
   double get_new_prediction(TruncatedSeq* seq) {
     return MAX2(seq->davg() + sigma() * seq->dsd(),
+    // confidence_factor表示可信度相关系数, confidence_factor当样本数据补足的时候(小于5个)取一个大于1的值,
+    // 并且样本数据越少该值越大, 当样本数据大于5的时候, confidence_factor取值为1, 这是为了弥补样本数据不足的时候, 起到补偿作用
                 seq->davg() * confidence_factor(seq->num()));
   }
 

@@ -85,7 +85,7 @@ vframe* vframe::new_vframe(const frame* f, const RegisterMap* reg_map, JavaThrea
   // External frame
   return new externalVFrame(f, reg_map, thread);
 }
-
+// 通过sender来获取下一个栈帧
 vframe* vframe::sender() const {
   RegisterMap temp_map = *register_map();
   assert(is_top(), "just checking");

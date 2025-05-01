@@ -3068,6 +3068,7 @@ void JavaThread::print_stack_on(outputStream* st) {
   RegisterMap reg_map(this);
   vframe* start_vf = last_java_vframe(&reg_map);
   int count = 0;
+  // for循环遍历java栈帧
   for (vframe* f = start_vf; f; f = f->sender() ) {
     if (f->is_java_frame()) {
       javaVFrame* jvf = javaVFrame::cast(f);

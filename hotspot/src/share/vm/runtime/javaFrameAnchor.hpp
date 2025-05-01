@@ -57,6 +57,7 @@ friend class JavaCallWrapper;
   // The stack may not be walkable [check with walkable() ] but the values must be valid.
   // The profiler apparently depends on this.
   //
+  // 最后一个栈帧的栈顶指针
   intptr_t* volatile _last_Java_sp;
 
   // Whenever we call from Java to native we can not be assured that the return

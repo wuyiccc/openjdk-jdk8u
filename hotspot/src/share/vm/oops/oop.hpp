@@ -68,6 +68,7 @@ class oopDesc {
   } _metadata;
 
   // Fast access to barrier set.  Must be initialized.
+  // 静态变量, 用于快速访问BarrierSet
   static BarrierSet* _bs;
 
  public:

@@ -28,6 +28,7 @@
 private:
 
   // FP value associated with _last_Java_sp:
+  // 最后一个栈帧的栈底指针
   intptr_t* volatile        _last_Java_fp;           // pointer is volatile not what it points to
 
 public:

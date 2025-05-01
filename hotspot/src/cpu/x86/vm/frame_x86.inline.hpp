@@ -30,13 +30,19 @@
 // Inline functions for Intel frames:
 
 // Constructors:
-
+// Java栈帧
 inline frame::frame() {
+  // 程序计数器
   _pc = NULL;
+  // 栈顶指针
   _sp = NULL;
+  // 异常栈顶指针
   _unextended_sp = NULL;
+  // 栈底指针
   _fp = NULL;
+  // 代码块的地址
   _cb = NULL;
+  // 描述从编译代码到解释代码反优化的状态
   _deopt_state = unknown;
 }
 

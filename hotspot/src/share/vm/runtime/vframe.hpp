@@ -50,7 +50,7 @@
 //     - entryVFrame        ; special frame created when calling Java from C
 
 // - BasicLock
-
+// 栈帧的封装
 class vframe: public ResourceObj {
  protected:
   frame        _fr;      // Raw frame behind the virtual frame.

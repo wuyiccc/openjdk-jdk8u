@@ -725,6 +725,8 @@ public:
 };
 
 // A single WatcherThread is used for simulating timer interrupts.
+// 执行周期性任务, jvm里面有很多周期性任务, 例如内存管理中对小对象使用了ChunkPool, 而这种管理需要周期性的清理动作ChunkPool Cleaner
+// jvm中的内存抽样任务emProfilerTask等都是周期性任务
 class WatcherThread: public Thread {
   friend class VMStructs;
  public:
@@ -797,7 +799,8 @@ class JavaThread: public Thread {
   };
  private:  // restore original namespace restriction
 #endif
-
+  // 保存了最后一次调用栈的栈sp和fp, 通过这两个可以构造栈帧结构
+  // 并且根据栈帧的内容遍历整个JavaThread运行时的所有调用链
   JavaFrameAnchor _anchor;                       // Encapsulation of current java frame and it state
 
   ThreadFunction _entry_point;
@@ -1819,6 +1822,7 @@ inline size_t JavaThread::stack_available(address cur_sp) {
 }
 
 // A thread used for Compilation.
+// jit线程
 class CompilerThread : public JavaThread {
   friend class VMStructs;
  private:

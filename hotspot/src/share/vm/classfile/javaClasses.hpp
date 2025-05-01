@@ -382,6 +382,7 @@ class java_lang_Thread : AllStatic {
   // Java Thread Status for JVMTI and M&M use.
   // This thread status info is saved in threadStatus field of
   // java.lang.Thread java class.
+  // 从ThreadStatus到Java线程ThreadState的值其实还要经过一次转换sun.misc.VM#toThreadState
   enum ThreadStatus {
     NEW                      = 0,
     RUNNABLE                 = JVMTI_THREAD_STATE_ALIVE +          // runnable / running

@@ -54,7 +54,7 @@ enum ThreadState {
   CONDVAR_WAIT,                 // Waiting on a condition variable
 // 等待Object.wait()的调用
   OBJECT_WAIT,                  // Waiting on an Object.wait() call
-// 停止在断电处
+// 停止断点处
   BREAKPOINTED,                 // Suspended at breakpoint
 // Thread.sleep()中
   SLEEPING,                     // Thread.sleep()

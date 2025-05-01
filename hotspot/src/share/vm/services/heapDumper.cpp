@@ -1687,7 +1687,8 @@ int VM_HeapDumper::do_thread(JavaThread* java_thread, u4 thread_serial_num) {
         // java frame (interpreted, compiled, ...)
         javaVFrame *jvf = javaVFrame::cast(vf);
         if (!(jvf->method()->is_native())) {
-          StackValueCollection* locals = jvf->locals();
+        // 如果JavaThread执行的是java代码, 则直接通过StackValueCollection访问局部变量
+        StackValueCollection* locals = jvf->locals();
           for (int slot=0; slot<locals->size(); slot++) {
             if (locals->at(slot)->type() == T_OBJECT) {
               oop o = locals->obj_at(slot)();
@@ -1704,6 +1705,7 @@ int VM_HeapDumper::do_thread(JavaThread* java_thread, u4 thread_serial_num) {
           // native frame
           if (stack_depth == 0) {
             // JNI locals for the top frame.
+            // 本地方法栈通过active_handlers()访问句柄而访问对象
             java_thread->active_handles()->oops_do(&blk);
           } else {
             if (last_entry_frame != NULL) {

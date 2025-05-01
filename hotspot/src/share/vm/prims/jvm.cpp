@@ -325,11 +325,13 @@ JVM_ENTRY(void, JVM_ArrayCopy(JNIEnv *env, jclass ignored, jobject src, jint src
   s->klass()->copy_array(s, src_pos, d, dst_pos, length, thread);
 JVM_END
 
-
+// 在native调用java.lang.System#initProperties的时候调用jvm的这个本地方法
 static void set_property(Handle props, const char* key, const char* value, TRAPS) {
   JavaValue r(T_OBJECT);
   // public synchronized Object put(Object key, Object value);
+  // 使用句柄
   HandleMark hm(THREAD);
+  // 构建handle, handle包裹了真实的对象
   Handle key_str    = java_lang_String::create_from_platform_dependent_str(key, CHECK);
   Handle value_str  = java_lang_String::create_from_platform_dependent_str((value != NULL ? value : ""), CHECK);
   JavaCalls::call_virtual(&r,

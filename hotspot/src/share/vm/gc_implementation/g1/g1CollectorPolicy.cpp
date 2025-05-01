@@ -300,7 +300,9 @@ G1CollectorPolicy::G1CollectorPolicy() :
          "we should have set it to a default value set_g1_gc_flags() "
          "if a user set it to 0");
   _gc_overhead_perc = 100.0 * (1.0 / (1.0 + GCTimeRatio));
-
+  // 保留内存比例, 默认值为10, 过大导致新生代空间过小, 过小导致新生代容易晋升失败
+  // 是用来在内存扩展/收缩的时候计算更新有多少个分区是保留的, 在新生代分区初始化的时候, 在空闲列表中保留一定的比例不使用
+  // 留到对象晋升的时候去使用
   uintx reserve_perc = G1ReservePercent;
   // Put an artificial ceiling on this so that it's not set to a silly value.
   if (reserve_perc > 50) {

@@ -355,7 +355,7 @@ JLI_Launch(int argc, char ** argv,              /* main argc, argc */
 // 简单添加一下方法
 void getParameters(JNIEnv *env, jclass mainClass, jmethodID mainID, jobjectArray mainArgs) {
 
-    printf("成功接收到变量参数");
+    //printf("成功接收到变量参数");
 }
 // 被JavaMain线程调用, args是java main函数的args参数
 int JNICALL

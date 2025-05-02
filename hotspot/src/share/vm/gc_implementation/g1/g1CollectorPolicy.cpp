@@ -545,10 +545,13 @@ void G1CollectorPolicy::update_young_list_target_length(size_t rs_lengths) {
   // Calculate the absolute and desired min bounds.
 
   // This is how many young regions we already have (currently: the survivors).
+  // survivor区的个数
   uint base_min_length = recorded_survivor_regions();
   // This is the absolute minimum young length, which ensures that we
   // can allocate one eden region in the worst-case.
+  // 至少要保留的young region区域的个数 (survivor+1)
   uint absolute_min_length = base_min_length + 1;
+  // 根据 启发式 计算出的理想最小值
   uint desired_min_length =
                      calculate_young_list_desired_min_length(base_min_length);
   if (desired_min_length < absolute_min_length) {
@@ -560,6 +563,7 @@ void G1CollectorPolicy::update_young_list_target_length(size_t rs_lengths) {
   // We will try our best not to "eat" into the reserve.
   uint absolute_max_length = 0;
   if (_free_regions_at_end_of_collection > _reserve_regions) {
+  // 不影响老年代 reserve 的前提下，最大的 young 长度
     absolute_max_length = _free_regions_at_end_of_collection - _reserve_regions;
   }
   uint desired_max_length = calculate_young_list_desired_max_length();
@@ -568,6 +572,7 @@ void G1CollectorPolicy::update_young_list_target_length(size_t rs_lengths) {
   }
 
   uint young_list_target_length = 0;
+  // 决定实际目标young的长度
   if (adaptive_young_list_length()) {
     if (gcs_are_young()) {
       young_list_target_length =
@@ -590,6 +595,7 @@ void G1CollectorPolicy::update_young_list_target_length(size_t rs_lengths) {
   // Make sure we don't go over the desired max length, nor under the
   // desired min length. In case they clash, desired_min_length wins
   // which is why that test is second.
+  // 控制年轻代的大小在合适的范围区间
   if (young_list_target_length > desired_max_length) {
     young_list_target_length = desired_max_length;
   }
@@ -604,7 +610,7 @@ void G1CollectorPolicy::update_young_list_target_length(size_t rs_lengths) {
 
   update_max_gc_locker_expansion();
 }
-
+// rs_lengths 影响基础开销的计算
 uint
 G1CollectorPolicy::calculate_young_list_target_length(size_t rs_lengths,
                                                      uint base_min_length,
@@ -623,6 +629,7 @@ G1CollectorPolicy::calculate_young_list_target_length(size_t rs_lengths,
   // min and max eden regions we'll allocate). The base_min_length
   // will be reflected in the predictions by the
   // survivor_regions_evac_time prediction.
+  // 计算出eden区域的长度范围区间
   assert(desired_min_length > base_min_length, "invariant");
   uint min_young_length = desired_min_length - base_min_length;
   assert(desired_max_length > base_min_length, "invariant");
@@ -632,7 +639,9 @@ G1CollectorPolicy::calculate_young_list_target_length(size_t rs_lengths,
   double survivor_regions_evac_time = predict_survivor_regions_evac_time();
   size_t pending_cards = (size_t) get_new_prediction(_pending_cards_seq);
   size_t adj_rs_lengths = rs_lengths + predict_rs_length_diff();
+  // 计算出需要扫描的cards的大小
   size_t scanned_cards = predict_young_card_num(adj_rs_lengths);
+  // 计算出当前gc的基本开销, 即使eden为0, 也需要的基础耗时
   double base_time_ms =
     predict_base_elapsed_time_ms(pending_cards, scanned_cards) +
     survivor_regions_evac_time;
@@ -644,7 +653,7 @@ G1CollectorPolicy::calculate_young_list_target_length(size_t rs_lengths,
 
   // Here, we will make sure that the shortest young length that
   // makes sense fits within the target pause time.
-
+  //
   if (predict_will_fit(min_young_length, base_time_ms,
                        base_free_regions, target_pause_time_ms)) {
     // The shortest young length will fit into the target pause time;
@@ -723,8 +732,10 @@ void G1CollectorPolicy::revise_young_list_target_length_if_necessary() {
   guarantee( adaptive_young_list_length(), "should not call this otherwise" );
 
   size_t rs_lengths = _g1->young_list()->sampled_rs_lengths();
+  // 如果当前采样到的rs长度比预测的值还要高, 那么需要扩大young区的目标容量
   if (rs_lengths > _rs_lengths_prediction) {
     // add 10% to avoid having to recalculate often
+    // 增加10%的冗余
     size_t rs_lengths_prediction = rs_lengths * 1100 / 1000;
     update_young_list_target_length(rs_lengths_prediction);
   }

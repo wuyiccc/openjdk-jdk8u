@@ -79,11 +79,16 @@ void ConcurrentG1RefineThread::sample_young_list_rs_lengths() {
   if (g1p->adaptive_young_list_length()) {
     int regions_visited = 0;
     g1h->young_list()->rs_length_sampling_init();
+    // young_list是所有新生代分区形成的一个链表
     while (g1h->young_list()->rs_length_sampling_more()) {
+    // rs_length_sampling_nex的值为在本次循环中有多少个分区可以加入到新生代分区,
+    // 其思路为: 当前分区有多少个引用的分区, 包括稀疏,细粒度,粗粒度的分区个数, 把这个数字加入到新生代总回收的要处理的分区数目,
+    // 从这里也可以看到停顿时间指回收新生代要花费的时间, 这个时间当然也包括分区之间引用的处理
       g1h->young_list()->rs_length_sampling_next();
       ++regions_visited;
 
       // we try to yield every time we visit 10 regions
+      // 每10次即处理10个分区, 主动让出cpu, 目的是为了让GC发生的时候, VMThread能顺利进入安全点
       if (regions_visited == 10) {
         if (sts.should_yield()) {
           sts.yield();
@@ -93,17 +98,18 @@ void ConcurrentG1RefineThread::sample_young_list_rs_lengths() {
         regions_visited = 0;
       }
     }
-
+    // 利用上面的抽样数据更新新生代分区的数目
     g1p->revise_young_list_target_length_if_necessary();
   }
 }
 
+// 抽样线程, 用来设置新生代分区的个数
 void ConcurrentG1RefineThread::run_young_rs_sampling() {
   DirtyCardQueueSet& dcqs = JavaThread::dirty_card_queue_set();
   _vtime_start = os::elapsedVTime();
   while(!_should_terminate) {
     sample_young_list_rs_lengths();
-
+    // 时间统计
     if (os::supports_vtime()) {
       _vtime_accum = (os::elapsedVTime() - _vtime_start);
     } else {
@@ -114,6 +120,8 @@ void ConcurrentG1RefineThread::run_young_rs_sampling() {
     if (_should_terminate) {
       break;
     }
+    // 使用参数G1ConcRefinementServiceIntervalMillis控制抽样线程运行的频度, 生产中如果发现采用不足可以减少该时间,
+    // 如果系统运行稳定满足预测时间, 可以增大该值减少采样
     _monitor->wait(Mutex::_no_safepoint_check_flag, G1ConcRefinementServiceIntervalMillis);
   }
 }

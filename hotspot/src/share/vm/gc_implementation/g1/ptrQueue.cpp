@@ -61,11 +61,14 @@ void PtrQueue::enqueue_known_active(void* ptr) {
   assert(0 <= _index && _index <= _sz, "Invariant.");
   assert(_index == 0 || _buf != NULL, "invariant");
 
+  // 如果dcq没有空间了, 则调用handle_zero_index, 内部根据process_or_enqueue_complete_buffer的返回值决定是否申请新的DCQ
   while (_index == 0) {
+  // 处理dcq满了的情况
     handle_zero_index();
   }
 
   assert(_index > 0, "postcondition");
+  // 在这里无论如何都会有合适的dcq可以使用, 因为满的dcq(dirty card queue)会申请新的, 直接加入对象
   _index -= oopSize;
   _buf[byte_index_to_index((int)_index)] = ptr;
   assert(0 <= _index && _index <= _sz, "Invariant.");
@@ -144,12 +147,13 @@ void PtrQueue::handle_zero_index() {
 
   // This thread records the full buffer and allocates a new one (while
   // holding the lock if there is one).
+  // 这里先进行二次判断, 防止dcq满了情况下同一线程多次进入分配
   if (_buf != NULL) {
     if (!should_enqueue_buffer()) {
       assert(_index > 0, "the buffer can only be re-used if it's not full");
       return;
     }
-
+    // dcq分为全局dcq和线程自己的dcq, _lock=true代表是全局的dcq, 需要加锁处理
     if (_lock) {
       assert(_lock->owned_by_self(), "Required.");
 
@@ -171,7 +175,7 @@ void PtrQueue::handle_zero_index() {
 
       void** buf = _buf;   // local pointer to completed buffer
       _buf = NULL;         // clear shared _buf field
-
+      // 将全局dcq放入到dcqs中, 然后再为全局的dcq申请新的空间
       locking_enqueue_completed_buffer(buf);  // enqueue completed buffer
 
       // While the current thread was enqueuing the buffer another thread
@@ -182,8 +186,10 @@ void PtrQueue::handle_zero_index() {
 
       if (_buf != NULL) return;
     } else {
+    // 线程自己的dcq, 直接处理就可以了
       if (qset()->process_or_enqueue_complete_buffer(_buf)) {
         // Recycle the buffer. No allocation.
+        // 返回为true, 代表mutator暂停执行应用代码, 帮助处理dcq, 所以此时可以重用dcq
         _sz = qset()->buffer_size();
         _index = _sz;
         return;
@@ -191,17 +197,19 @@ void PtrQueue::handle_zero_index() {
     }
   }
   // Reallocate the buffer
+  // 为dcq申请新的内存空间
   _buf = qset()->allocate_buffer();
   _sz = qset()->buffer_size();
   _index = _sz;
   assert(0 <= _index && _index <= _sz, "Invariant.");
 }
-
+// 处理dcq, 根据情况判定是否需要mutator帮助refine线程处理dcq日志
 bool PtrQueueSet::process_or_enqueue_complete_buffer(void** buf) {
   if (Thread::current()->is_Java_thread()) {
     // We don't lock. It is fine to be epsilon-precise here.
     if (_max_completed_queue == 0 || _max_completed_queue > 0 &&
         _n_completed_buffers >= _max_completed_queue + _completed_queue_padding) {
+        // 这里使用mutator线程协助refine线程处理dcq
       bool b = mut_process_buffer(buf);
       if (b) {
         // True here means that the buffer hasn't been deallocated and the caller may reuse it.
@@ -213,7 +221,7 @@ bool PtrQueueSet::process_or_enqueue_complete_buffer(void** buf) {
   enqueue_complete_buffer(buf);
   return false;
 }
-
+// dcq形成一个链表
 void PtrQueueSet::enqueue_complete_buffer(void** buf, size_t index) {
   MutexLockerEx x(_cbl_mon, Mutex::_no_safepoint_check_flag);
   BufferNode* cbn = BufferNode::new_from_buffer(buf);
@@ -227,11 +235,12 @@ void PtrQueueSet::enqueue_complete_buffer(void** buf, size_t index) {
     _completed_buffers_tail = cbn;
   }
   _n_completed_buffers++;
-
+  // 这里判断是否需要有refine线程工作, 如果没有线程工作, 则通过notify通知启动
   if (!_process_completed && _process_completed_threshold >= 0 &&
       _n_completed_buffers >= _process_completed_threshold) {
     _process_completed = true;
     if (_notify_when_complete)
+    // 这里通知0号refine线程
       _cbl_mon->notify();
   }
   debug_only(assert_completed_buffer_list_len_correct_locked());

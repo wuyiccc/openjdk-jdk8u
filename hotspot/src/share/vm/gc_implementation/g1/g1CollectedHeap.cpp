@@ -2107,7 +2107,7 @@ jint G1CollectedHeap::initialize() {
                                                SATB_Q_FL_lock,
                                                G1SATBProcessCompletedThreshold,
                                                Shared_SATB_Q_lock);
-
+  // DirtyCardQ_CBL_mon 全局监视器用户控制mutator线程和refine线程之间对于脏卡处理的同步操作
   JavaThread::dirty_card_queue_set().initialize(_refine_cte_cl,
                                                 DirtyCardQ_CBL_mon,
                                                 DirtyCardQ_FL_lock,

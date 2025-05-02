@@ -88,6 +88,7 @@ public:
   }
 
   // Enqueues the given "obj".
+  // 将对象放入到dirtyCardQueue
   void enqueue(void* ptr) {
     if (!_active) return;
     else enqueue_known_active(ptr);

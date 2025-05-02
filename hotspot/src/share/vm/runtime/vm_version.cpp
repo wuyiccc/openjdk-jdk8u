@@ -346,6 +346,7 @@ unsigned int Abstract_VM_Version::calc_parallel_worker_threads() {
 
 // Does not set the _initialized flag since it is
 // a global flag.
+// 设置parallel gc thread是数量 根据cpu的核心数量
 unsigned int Abstract_VM_Version::parallel_worker_threads() {
   if (!_parallel_worker_threads_initialized) {
     if (FLAG_IS_DEFAULT(ParallelGCThreads)) {

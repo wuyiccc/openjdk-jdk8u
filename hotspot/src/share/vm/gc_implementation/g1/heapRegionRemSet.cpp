@@ -85,7 +85,7 @@ protected:
       }
     }
   }
-
+  // 记录对象所属的卡页索引, PerRegionTable这里已经存储的对应的引用HeapRegion了, 所以这里存储一下卡页索引就ok
   void add_reference_work(OopOrNarrowOopStar from, bool par) {
     // Must make this robust in case "from" is not in "_hr", because of
     // concurrency.
@@ -97,7 +97,7 @@ protected:
                              ? (void *)oopDesc::load_decode_heap_oop((narrowOop*)from)
                              : (void *)oopDesc::load_decode_heap_oop((oop*)from));
     }
-
+    // 拿到当前PerRegionTable对应引用的HeapRegion
     HeapRegion* loc_hr = hr();
     // If the test below fails, then this table was reused concurrently
     // with this operation.  This is OK, since the old table was coarsened,
@@ -108,6 +108,7 @@ protected:
     // instead of just is_in_reserved() here.
     if (loc_hr->is_in_reserved_raw(from)) {
       size_t hw_offset = pointer_delta((HeapWord*)from, loc_hr->bottom());
+      // 这里只需要计算出引用地址相对于自己所属的HeapRegion对应的卡页索引就可以了
       CardIdx_t from_card = (CardIdx_t)
           hw_offset >> (CardTableModRefBS::card_shift - LogHeapWordSize);
 
@@ -421,6 +422,12 @@ void OtherRegionsTable::invalidate(uint start_idx, size_t num_regions) {
 void OtherRegionsTable::print_from_card_cache() {
   FromCardCache::print();
 }
+// OtherRegionsTable记录区域间引用关系有三种结构
+// 1. 稀疏PRT(SparsePRT): 由链表链接的SparsePRTEntry, 每个SparsePRTEntry对应的引用对象的HeapRegion信息, 其中最多只能存储4个该区域的引用信息
+// 2. 细粒度PRT: 由PerRegionTable组成的链表, 每个PerRegionTable对应一个引用HeapRegion, 然后内部有bitmap存储区域内的卡片是否存在对当前区域的引用,
+// 当SparsePRT满了之后会迁移到PerRegionTable中
+// 3. 粗粒度: 通过位图, 每一位表示对应的分区有引用到该分区的数据结构, 相对于上面两个结构都精确到了对应的HeapRegion+卡片(512Byte), 这个结构仅仅精确到了HeapRegion, 并没有精确到HeapRegion内部的卡片信息
+
 
 void OtherRegionsTable::add_reference(OopOrNarrowOopStar from, int tid) {
   uint cur_hrm_ind = hr()->hrm_index();
@@ -432,7 +439,7 @@ void OtherRegionsTable::add_reference(OopOrNarrowOopStar from, int tid) {
                                                     ? (void *)oopDesc::load_decode_heap_oop((narrowOop*)from)
                                                     : (void *)oopDesc::load_decode_heap_oop((oop*)from));
   }
-
+  // 映射为卡页编号 / 512
   int from_card = (int)(uintptr_t(from) >> CardTableModRefBS::card_shift);
 
   if (G1TraceHeapRegionRememberedSet) {
@@ -440,7 +447,8 @@ void OtherRegionsTable::add_reference(OopOrNarrowOopStar from, int tid) {
                   hr()->bottom(), from_card,
                   FromCardCache::at((uint)tid, cur_hrm_ind));
   }
-
+  // 为了提高效率, 有一个卡表缓存, 在缓存中发现引用已经处理则返回
+  // 利用被引用的region index + 引用者的card地址判断
   if (FromCardCache::contains_or_replace((uint)tid, cur_hrm_ind, from_card)) {
     if (G1TraceHeapRegionRememberedSet) {
       gclog_or_tty->print_cr("  from-card cache hit.");
@@ -450,10 +458,13 @@ void OtherRegionsTable::add_reference(OopOrNarrowOopStar from, int tid) {
   }
 
   // Note that this may be a continued H region.
+  // 拿到引用的region
   HeapRegion* from_hr = _g1h->heap_region_containing_raw(from);
+  // 拿到引用region的index
   RegionIdx_t from_hrm_ind = (RegionIdx_t) from_hr->hrm_index();
 
   // If the region is already coarsened, return.
+  // 如果RSet已经变成粗粒度的关系, 也就是说RSet里面记录的是引用者对象所在的分区而不是对象对应的卡表地址, 那么可以直接返回
   if (_coarse_map.at(from_hrm_ind)) {
     if (G1TraceHeapRegionRememberedSet) {
       gclog_or_tty->print_cr("  coarse map hit.");
@@ -463,21 +474,28 @@ void OtherRegionsTable::add_reference(OopOrNarrowOopStar from, int tid) {
   }
 
   // Otherwise find a per-region table to add it to.
+  // 添加PRT引用关系到RSet中
   size_t ind = from_hrm_ind & _mod_max_fine_entries_mask;
+  // 获取对应的细粒度的PerRegionTable
   PerRegionTable* prt = find_region_table(ind, from_hr);
   if (prt == NULL) {
+    // 这里需要加锁, 因为可能有多个线程同时访问一个分区对应的RSet信息
     MutexLockerEx x(_m, Mutex::_no_safepoint_check_flag);
     // Confirm that it's really not there...
+    // double check, 这里需要二次检查PerRegionTable是否存在
     prt = find_region_table(ind, from_hr);
     if (prt == NULL) {
-
+      // 使用稀疏矩阵来存储
+      // 这里获取的是引用对所在的HeapRegion的第一个卡片的索引
       uintptr_t from_hr_bot_card_index =
         uintptr_t(from_hr->bottom())
           >> CardTableModRefBS::card_shift;
+      // 计算出引用对象在HeapRegion中的内部偏移
       CardIdx_t card_index = from_card - from_hr_bot_card_index;
       assert(0 <= card_index && (size_t)card_index < HeapRegion::CardsPerRegion,
              "Must be in range.");
       if (G1HRRSUseSparseTable &&
+          // 添加引用关系到稀疏矩阵中
           _sparse_table.add_card(from_hrm_ind, card_index)) {
         if (G1RecordHRRSOops) {
           HeapRegionRemSet::record(hr(), from);
@@ -501,17 +519,21 @@ void OtherRegionsTable::add_reference(OopOrNarrowOopStar from, int tid) {
                         tid, from_hrm_ind, cur_hrm_ind);
         }
       }
+      // 这里是添加到稀疏矩阵中失败了
 
+      // 细粒度卡表已经满了, 删除所有的PRT, 然后把他们放入粗粒度位图中, 这个是针对分区的bitmap
       if (_n_fine_entries == _max_fine_entries) {
         prt = delete_region_table();
         // There is no need to clear the links to the 'all' list here:
         // prt will be reused immediately, i.e. remain in the 'all' list.
+        // 然后再重新初始化PerRegionTable
         prt->init(from_hr, false /* clear_links_to_all_list */);
       } else {
+      // 稀疏矩阵添加失败, 但是细粒度卡表仍然能够使用, 需要分配一个新的细粒度卡表来存储
         prt = PerRegionTable::alloc(from_hr);
         link_to_all(prt);
       }
-
+      // 将新申请的或者初始化的PerRegionTable加入细粒度PerRegionTable表的集合中
       PerRegionTable* first_prt = _fine_grain_regions[ind];
       prt->set_collision_list_next(first_prt);
       // The assignment into _fine_grain_regions allows the prt to
@@ -524,9 +546,11 @@ void OtherRegionsTable::add_reference(OopOrNarrowOopStar from, int tid) {
       // zeroing becomes visible). This requires store ordering.
       OrderAccess::release_store_ptr((volatile PerRegionTable*)&_fine_grain_regions[ind], prt);
       _n_fine_entries++;
-
+      // 把稀疏矩阵里面的数据迁移到细粒度卡表中, 添加成功后删除稀疏矩阵
       if (G1HRRSUseSparseTable) {
         // Transfer from sparse to fine-grain.
+        // 获取region id的稀疏表, 遍历将其加入到细粒度PerRegionTable表中
+        // 对应的稀疏表满了, 所以需要删除并退化为细粒度表
         SparsePRTEntry *sprt_entry = _sparse_table.get_entry(from_hrm_ind);
         assert(sprt_entry != NULL, "There should have been an entry");
         for (int i = 0; i < SparsePRTEntry::cards_num(); i++) {
@@ -536,6 +560,7 @@ void OtherRegionsTable::add_reference(OopOrNarrowOopStar from, int tid) {
           }
         }
         // Now we can delete the sparse entry.
+        // 删除稀疏表
         bool res = _sparse_table.delete_entry(from_hrm_ind);
         assert(res, "It should have been there.");
       }
@@ -546,7 +571,7 @@ void OtherRegionsTable::add_reference(OopOrNarrowOopStar from, int tid) {
   // possibility of concurrent reuse.  But see head comment of
   // OtherRegionsTable for why this is OK.
   assert(prt != NULL, "Inv");
-
+  // 添加引用到PerRegionTable中
   prt->add_reference(from);
 
   if (G1RecordHRRSOops) {

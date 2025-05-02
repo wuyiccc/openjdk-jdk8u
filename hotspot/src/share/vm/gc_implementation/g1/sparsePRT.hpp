@@ -46,6 +46,7 @@ class SparsePRTEntry: public CHeapObj<mtGC> {
 public:
   enum SomePublicConstants {
     NullEntry     = -1,
+    // 稀疏矩阵的容量为4
     UnrollFactor  =  4
   };
 private:
@@ -58,6 +59,7 @@ public:
   // Returns the size of the entry, used for entry allocation.
   static size_t size() { return sizeof(SparsePRTEntry) + sizeof(CardIdx_t) * (cards_num() - 1); }
   // Returns the size of the card array.
+  // 卡表数组的大小必须为4的倍数
   static int cards_num() {
     // The number of cards should be a multiple of 4, because that's our current
     // unrolling factor.

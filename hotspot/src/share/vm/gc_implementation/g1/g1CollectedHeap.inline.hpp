@@ -138,9 +138,11 @@ inline HeapWord* G1CollectedHeap::attempt_allocation(size_t word_size,
          "be called for humongous allocation requests");
 
   AllocationContext_t context = AllocationContext::current();
+  // 快速cas无锁分配tlab
   HeapWord* result = _allocator->mutator_alloc_region(context)->attempt_allocation(word_size,
                                                                                    false /* bot_updates */);
   if (result == NULL) {
+  // 慢速加锁分配
     result = attempt_allocation_slow(word_size,
                                      context,
                                      gc_count_before_ret,

@@ -48,6 +48,7 @@ private:
   size_t    _allocated_before_last_gc;           // total bytes allocated up until the last gc
 
   static size_t   _max_size;                     // maximum size of any TLAB
+  // 线程获取新tlab分配对象行为的次数
   static unsigned _target_refills;               // expected number of refills between GCs
 
   unsigned  _number_of_refills;

@@ -320,7 +320,7 @@ class HeapRegion: public G1OffsetTableContigSpace {
 
   static int    LogOfHRGrainBytes;
   static int    LogOfHRGrainWords;
-
+  // region_size的大小
   static size_t GrainBytes;
   static size_t GrainWords;
   static size_t CardsPerRegion;

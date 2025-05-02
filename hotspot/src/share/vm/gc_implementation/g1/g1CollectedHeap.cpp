@@ -839,6 +839,7 @@ G1CollectedHeap::mem_allocate(size_t word_size,
 
     HeapWord* result = NULL;
     if (!isHumongous(word_size)) {
+    // 这里如果分配不成功, 则进行增量的垃圾回收, 主要是新生代或者混合收集
       result = attempt_allocation(word_size, &gc_count_before, &gclocker_retry_count);
     } else {
       result = attempt_allocation_humongous(word_size, &gc_count_before, &gclocker_retry_count);
@@ -848,10 +849,13 @@ G1CollectedHeap::mem_allocate(size_t word_size,
     }
 
     // Create the garbage collection operation...
+    // 这里进行最后的分配尝试(前面已经进行过几次gc了)
+    // 这里如果分配不成功则进行垃圾回收, 主要是 full gc, 进行几次不同的垃圾回收和尝试
     VM_G1CollectForAllocation op(gc_count_before, word_size);
     op.set_allocation_context(AllocationContext::current());
 
     // ...and get the VM thread to execute it.
+    // 通过vmThread进行执行
     VMThread::execute(&op);
 
     if (op.prologue_succeeded() && op.pause_succeeded()) {
@@ -867,6 +871,7 @@ G1CollectedHeap::mem_allocate(size_t word_size,
       }
       return result;
     } else {
+    // 分配失败次数是否达到阈值
       if (gclocker_retry_count > GCLockerRetryAllocationCount) {
         return NULL;
       }
@@ -884,7 +889,7 @@ G1CollectedHeap::mem_allocate(size_t word_size,
   ShouldNotReachHere();
   return NULL;
 }
-
+// 慢速分配要么分配成功, 要么达到重试次数之后失败
 HeapWord* G1CollectedHeap::attempt_allocation_slow(size_t word_size,
                                                    AllocationContext_t context,
                                                    uint* gc_count_before_ret,
@@ -908,6 +913,7 @@ HeapWord* G1CollectedHeap::attempt_allocation_slow(size_t word_size,
     uint gc_count_before;
 
     {
+      //加锁分配
       MutexLockerEx x(Heap_lock);
       result = _allocator->mutator_alloc_region(context)->attempt_allocation_locked(word_size,
                                                                                     false /* bot_updates */);
@@ -920,6 +926,7 @@ HeapWord* G1CollectedHeap::attempt_allocation_slow(size_t word_size,
       assert(_allocator->mutator_alloc_region(context)->get() == NULL, "only way to get here");
 
       if (GC_locker::is_active_and_needs_gc()) {
+      // 判断是否可以对新生代进行扩展, 如果可以扩展, 则扩展后再分配tlab, 成功则返回,在attempt_allocation_force中完成分配
         if (g1_policy()->can_expand_young_list()) {
           // No need for an ergo verbose message here,
           // can_expand_young_list() does this when it returns true.
@@ -948,6 +955,7 @@ HeapWord* G1CollectedHeap::attempt_allocation_slow(size_t word_size,
 
     if (should_try_gc) {
       bool succeeded;
+      // gc没有进入临界区, 可以进行垃圾回收, 进行垃圾回收之后再进行分配
       result = do_collection_pause(word_size, gc_count_before, &succeeded,
                                    GCCause::_g1_inc_collection_pause);
       if (result != NULL) {
@@ -959,11 +967,14 @@ HeapWord* G1CollectedHeap::attempt_allocation_slow(size_t word_size,
         // If we get here we successfully scheduled a collection which
         // failed to allocate. No point in trying to allocate
         // further. We'll just return NULL.
+        // 稍后可以进行垃圾回收, 可以先返回
         MutexLockerEx x(Heap_lock);
         *gc_count_before_ret = total_collections();
         return NULL;
       }
     } else {
+    // jni进入临界区中, 判断是否达到分配次数阈值2, 如果还可以继续尝试, 则判断是否进行快速分配, 如果成功则返回
+    // 如果不成功则重新再尝试一次, 直到成功或者达到阈值失败
       if (*gclocker_retry_count_ret > GCLockerRetryAllocationCount) {
         MutexLockerEx x(Heap_lock);
         *gc_count_before_ret = total_collections();
@@ -984,6 +995,7 @@ HeapWord* G1CollectedHeap::attempt_allocation_slow(size_t word_size,
     // first attempt (without holding the Heap_lock) here and the
     // follow-on attempt will be at the start of the next loop
     // iteration (after taking the Heap_lock).
+    // 可能因为其他线程正在分配或者GCLocker正在被竞争使用等, 在进行加锁分配前再尝试进行无锁分配
     result = _allocator->mutator_alloc_region(context)->attempt_allocation(word_size,
                                                                            false /* bot_updates */);
     if (result != NULL) {
@@ -1025,6 +1037,7 @@ HeapWord* G1CollectedHeap::attempt_allocation_humongous(size_t word_size,
   // the check before we do the actual allocation. The reason for doing it
   // before the allocation is that we avoid having to keep track of the newly
   // allocated memory while we do a GC.
+  // 尝试进行垃圾回收
   if (g1_policy()->need_to_start_conc_mark("concurrent humongous allocation",
                                            word_size)) {
     collect(GCCause::_g1_humongous_allocation);
@@ -1040,11 +1053,13 @@ HeapWord* G1CollectedHeap::attempt_allocation_humongous(size_t word_size,
     uint gc_count_before;
 
     {
+      // 加锁
       MutexLockerEx x(Heap_lock);
 
       // Given that humongous objects are not allocated in young
       // regions, we'll first try to do the allocation without doing a
       // collection hoping that there's enough space in the heap.
+      // 大对象分配
       result = humongous_obj_allocate(word_size, AllocationContext::current());
       if (result != NULL) {
         return result;
@@ -1062,6 +1077,7 @@ HeapWord* G1CollectedHeap::attempt_allocation_humongous(size_t word_size,
           should_try_gc = false;
         } else {
           // Read the GC count while still holding the Heap_lock.
+          // 可以继续执行gc
           gc_count_before = total_collections();
           should_try_gc = true;
         }
@@ -1072,6 +1088,7 @@ HeapWord* G1CollectedHeap::attempt_allocation_humongous(size_t word_size,
       // If we failed to allocate the humongous object, we should try to
       // do a collection pause (if we're allowed) in case it reclaims
       // enough space for the allocation to succeed after the pause.
+      // 垃圾回收, 增量回收
 
       bool succeeded;
       result = do_collection_pause(word_size, gc_count_before, &succeeded,
@@ -1081,10 +1098,12 @@ HeapWord* G1CollectedHeap::attempt_allocation_humongous(size_t word_size,
         return result;
       }
 
+      // 这里说明垃圾回收进行成功, 但是对象还是分配失败
       if (succeeded) {
         // If we get here we successfully scheduled a collection which
         // failed to allocate. No point in trying to allocate
         // further. We'll just return NULL.
+        // 稍后进行回收, 先返回
         MutexLockerEx x(Heap_lock);
         *gc_count_before_ret = total_collections();
         return NULL;
@@ -1649,6 +1668,7 @@ G1CollectedHeap::satisfy_failed_allocation(size_t word_size,
 
   *succeeded = true;
   // Let's attempt the allocation first.
+  // 在执行gc之前, 再次尝试进行一次对象分配
   HeapWord* result =
     attempt_allocation_at_safepoint(word_size,
                                     context,
@@ -1662,6 +1682,7 @@ G1CollectedHeap::satisfy_failed_allocation(size_t word_size,
   // incremental pauses.  Therefore, at least for now, we'll favor
   // expansion over collection.  (This might change in the future if we can
   // do something smarter than full collection to satisfy a failed alloc.)
+  // 尝试扩展新的分区, 然后再返回
   result = expand_and_allocate(word_size, context);
   if (result != NULL) {
     assert(*succeeded, "sanity");
@@ -1669,6 +1690,7 @@ G1CollectedHeap::satisfy_failed_allocation(size_t word_size,
   }
 
   // Expansion didn't work, we'll try to do a Full GC.
+  // 不成功则进行full gc, 但是这里不回收软引用
   bool gc_succeeded = do_collection(false, /* explicit_gc */
                                     false, /* clear_all_soft_refs */
                                     word_size);
@@ -1687,6 +1709,7 @@ G1CollectedHeap::satisfy_failed_allocation(size_t word_size,
   }
 
   // Then, try a Full GC that will collect all soft references.
+  // 这里分配不成功则再次进行一次内存回收, 不过这里要回收软引用了
   gc_succeeded = do_collection(false, /* explicit_gc */
                                true,  /* clear_all_soft_refs */
                                word_size);
@@ -1696,6 +1719,7 @@ G1CollectedHeap::satisfy_failed_allocation(size_t word_size,
   }
 
   // Retry the allocation once more
+  // 最后一次尝试分配
   result = attempt_allocation_at_safepoint(word_size,
                                            context,
                                            true /* expect_null_mutator_alloc_region */);

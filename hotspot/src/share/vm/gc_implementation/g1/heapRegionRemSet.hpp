@@ -244,7 +244,7 @@ private:
   G1CodeRootSet _code_roots;
 
   Mutex _m;
-
+  // HeapRegion引用关系记录 add_reference
   OtherRegionsTable _other_regions;
 
   enum ParIterState { Unclaimed, Claimed, Complete };

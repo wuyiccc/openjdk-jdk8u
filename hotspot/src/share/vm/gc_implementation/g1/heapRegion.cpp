@@ -484,6 +484,7 @@ bool HeapRegion::oops_on_card_seq_iterate_careful(MemRegion mr,
 
   // We can only clean the card here, after we make the decision that
   // the card is not young.
+  // 将卡表改变为clean状态, 这是为了说明该内存块正在被处理
   *card_ptr = CardTableModRefBS::clean_card_val();
   // We must complete this write before we do any of the reads below.
   OrderAccess::storeload();
@@ -525,6 +526,7 @@ bool HeapRegion::oops_on_card_seq_iterate_careful(MemRegion mr,
            err_msg("Unparsable heap at " PTR_FORMAT, p2i(cur)));
 
     if (g1h->is_obj_dead(obj, this)) {
+    // 根据内存的快照判断对象是否死亡
       // Carefully step over dead object.
       cur += block_size(cur);
     } else {
@@ -534,6 +536,7 @@ bool HeapRegion::oops_on_card_seq_iterate_careful(MemRegion mr,
       // start, in which case we need to iterate over them in full.
       // objArrays are precisely marked, but can still be iterated
       // over in full if completely covered.
+      // 遍历对象, 遍历到的每一个对象都会用G1UpdateRSOrPushRefOopClosure来处理
       if (!obj->is_objArray() || (((HeapWord*)obj) >= start && cur <= end)) {
         obj->oop_iterate(cl);
       } else {

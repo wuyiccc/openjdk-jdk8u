@@ -178,6 +178,7 @@ inline void G1UpdateRSOrPushRefOopClosure::do_oop_nv(T* p) {
   assert(_from->is_in_reserved(p), "p is not in from");
 
   HeapRegion* to = _g1->heap_region_containing(obj);
+  // 只处理不同分区之间的引用关系
   if (_from == to) {
     // Normally this closure should only be called with cross-region references.
     // But since Java threads are manipulating the references concurrently and we
@@ -200,10 +201,13 @@ inline void G1UpdateRSOrPushRefOopClosure::do_oop_nv(T* p) {
     // to itself, we are handling an evacuation failure and
     // we have already visited/tried to copy this object
     // there is no need to retry.
+    //  evac的情况才能进入到这里, 对象正常情况把对象放入栈中继续处理, 这里主要处理分区内部的引用,
+    // 只需要复制对象, 不必维护引用关系. 失败的情况则需要通过特殊路径来处理
     if (!self_forwarded(obj)) {
       assert(_push_ref_cl != NULL, "should not be null");
       // Push the reference in the refs queue of the G1ParScanThreadState
       // instance for this worker thread.
+      // 对于成功转移的对象放入G1ParScanThreadState的队列中处理
       _push_ref_cl->do_oop(p);
      }
 
@@ -218,6 +222,7 @@ inline void G1UpdateRSOrPushRefOopClosure::do_oop_nv(T* p) {
     // we add the reference directly to the RSet of the region containing
     // the referenced object.
     assert(to->rem_set() != NULL, "Need per-region 'into' remsets.");
+    // 这里就是调用add_reference维护rs信息啦
     to->rem_set()->add_reference(p, _worker_i);
   }
 }

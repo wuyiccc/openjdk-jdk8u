@@ -174,6 +174,7 @@ void ConcurrentG1RefineThread::run() {
   initialize_in_thread();
   wait_for_universe_init();
 
+  // refine的最后一个线程用于处理YHR的抽样, 抽样的作用在前面已经提到, 就是为了预测停顿时间并调整分区数目
   if (_worker_id >= cg1r()->worker_thread_num()) {
     run_young_rs_sampling();
     terminate();
@@ -181,10 +182,12 @@ void ConcurrentG1RefineThread::run() {
   }
 
   _vtime_start = os::elapsedVTime();
+  // 0~n-1线程是真正的refine线程, 处理rset
   while (!_should_terminate) {
     DirtyCardQueueSet& dcqs = JavaThread::dirty_card_queue_set();
 
     // Wait for work
+    // 这个就是之前说的由前一个refine线程通知后一个refine线程, 而0号refine线程由mutator通知
     wait_for_completed_buffers();
 
     if (_should_terminate) {
@@ -201,7 +204,7 @@ void ConcurrentG1RefineThread::run() {
         if (dcqs.completed_queue_padding() > 0 && curr_buffer_num <= cg1r()->yellow_zone()) {
           dcqs.set_completed_queue_padding(0);
         }
-
+        // 根据负载判断是否需要停止当前refine线程, 如何需要则停止
         if (_worker_id > 0 && curr_buffer_num <= _deactivation_threshold) {
           // If the number of the buffer has fallen below our threshold
           // we should deactivate. The predecessor will reactivate this
@@ -211,12 +214,17 @@ void ConcurrentG1RefineThread::run() {
         }
 
         // Check if we need to activate the next thread.
+        // 根据负载判断是否需要通知/启动新的refine线程, 如果需要则发送一个notify通知
         if (_next != NULL && !_next->is_active() && curr_buffer_num > _next->_threshold) {
           _next->activate();
         }
+        // _refine_closure 真正处理卡表的类
+        // worker_id + worker_id_offset 工作线程要处理的开始位置
+        // green_zone 需要跳过的dcq的区域, gc收集的时候这个参数是0, 代表要处理所有的dcq
       } while (dcqs.apply_closure_to_completed_buffer(_refine_closure, _worker_id + _worker_id_offset, cg1r()->green_zone()));
 
       // We can exit the loop above while being active if there was a yield request.
+      // 当有yield请求的时候退出循环, 目的是为了进入安全点
       if (is_active()) {
         deactivate();
       }

@@ -276,7 +276,7 @@ public:
     // In this case worker_i should be the id of a GC worker thread.
     assert(SafepointSynchronize::is_at_safepoint(), "not during an evacuation pause");
     assert(worker_i < (ParallelGCThreads == 0 ? 1 : ParallelGCThreads), "should be a GC worker");
-
+    // 这里继续处理
     if (_g1rs->refine_card(card_ptr, worker_i, true)) {
       // 'card_ptr' contains references that point into the collection
       // set. We need to record the card in the DCQS
@@ -449,6 +449,7 @@ bool G1RemSet::refine_card(jbyte* card_ptr, uint worker_i,
                  _g1->addr_to_region(_ct_bs->addr_for(card_ptr))));
 
   // If the card is no longer dirty, nothing to do.
+  // 如果卡表指针对应的值已经不是dirty, 说明该指针已经处理过了, 所以不再需要处理, 直接返回
   if (*card_ptr != CardTableModRefBS::dirty_card_val()) {
     // No need to return that this card contains refs that point
     // into the collection set.
@@ -456,6 +457,7 @@ bool G1RemSet::refine_card(jbyte* card_ptr, uint worker_i,
   }
 
   // Construct the region representing the card.
+  // 找到卡表指针所在的分区
   HeapWord* start = _ct_bs->addr_for(card_ptr);
   // And find the region containing it.
   HeapRegion* r = _g1->heap_region_containing(start);
@@ -497,7 +499,8 @@ bool G1RemSet::refine_card(jbyte* card_ptr, uint worker_i,
   //     which had some headroom),
   //   * a pointer to a "hot" card that was evicted from the "hot" cache.
   //
-
+  // g1的热表数据处理， 比如一个对象的字段反复修改， 那么会存在这里, 等待后续批量处理
+  // 如果热表的数据太多, 最老的则会被赶出继续处理
   G1HotCardCache* hot_card_cache = _cg1r->hot_card_cache();
   if (hot_card_cache->use_cache()) {
     assert(!check_for_refs_into_cset, "sanity");
@@ -521,6 +524,7 @@ bool G1RemSet::refine_card(jbyte* card_ptr, uint worker_i,
   // Don't use addr_for(card_ptr + 1) which can ask for
   // a card beyond the heap.  This is not safe without a perm
   // gen at the upper end of the heap.
+  // 确定要处理的内存块大小为512字节
   HeapWord* end   = start + CardTableModRefBS::card_size_in_words;
   MemRegion dirtyRegion(start, end);
 
@@ -528,7 +532,7 @@ bool G1RemSet::refine_card(jbyte* card_ptr, uint worker_i,
   init_ct_freq_table(_g1->max_capacity());
   ct_freq_note_card(_ct_bs->index_for(start));
 #endif
-
+  // 定义 G1ParPushHeapRSClosure 处理对象
   G1ParPushHeapRSClosure* oops_in_heap_closure = NULL;
   if (check_for_refs_into_cset) {
     // ConcurrentG1RefineThreads have worker numbers larger than what
@@ -568,7 +572,7 @@ bool G1RemSet::refine_card(jbyte* card_ptr, uint worker_i,
   // fail arbitrarily). We tell the iteration code to perform this
   // filtering when it has been determined that there has been an actual
   // allocation in this region and making it safe to check the young type.
-
+  // 具体处理
   bool card_processed =
     r->oops_on_card_seq_iterate_careful(dirtyRegion,
                                         &filter_then_update_rs_oop_cl,
@@ -589,6 +593,7 @@ bool G1RemSet::refine_card(jbyte* card_ptr, uint worker_i,
                       Mutex::_no_safepoint_check_flag);
       DirtyCardQueue* sdcq =
         JavaThread::dirty_card_queue_set().shared_dirty_card_queue();
+        // 如果处理过程中发现问题, 则把该引用放入到公共的dcqs中, 等待后续处理
       sdcq->enqueue(card_ptr);
     }
   } else {

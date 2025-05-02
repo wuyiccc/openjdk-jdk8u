@@ -57,6 +57,7 @@ bool DirtyCardQueue::apply_closure_to_buffer(CardTableEntryClosure* cl,
     if (card_ptr != NULL) {
       // Set the entry to null, so we don't do it again (via the test
       // above) if we reconsider this buffer.
+      // 设置buffer为null, 再对Buf遍历的时候就可以快速跳过NULL
       if (consume) buf[ind] = NULL;
       if (!cl->do_card_ptr(card_ptr, worker_i)) return false;
     }
@@ -204,7 +205,9 @@ apply_closure_to_completed_buffer_helper(CardTableEntryClosure* cl,
     return false;
   }
 }
-
+// _refine_closure 真正处理卡表的类
+// worker_id + worker_id_offset 工作线程要处理的开始位置
+// green_zone 需要跳过的dcq的区域, gc收集的时候这个参数是0, 代表要处理所有的dcq
 bool DirtyCardQueueSet::apply_closure_to_completed_buffer(CardTableEntryClosure* cl,
                                                           uint worker_i,
                                                           int stop_at,

@@ -2304,11 +2304,14 @@ void G1CollectedHeap::iterate_dirty_card_closure(CardTableEntryClosure* cl,
                                                  bool concurrent,
                                                  uint worker_i) {
   // Clean cards in the hot card cache
+  // 先处理热表
   G1HotCardCache* hot_card_cache = _cg1r->hot_card_cache();
   hot_card_cache->drain(worker_i, g1_rem_set(), into_cset_dcq);
 
+  // 处理dcqs中剩下的dcq
   DirtyCardQueueSet& dcqs = JavaThread::dirty_card_queue_set();
   size_t n_completed_buffers = 0;
+  // stop_at = 0, 表示处理所有的dcq
   while (dcqs.apply_closure_to_completed_buffer(cl, worker_i, 0, true)) {
     n_completed_buffers++;
   }
@@ -2859,6 +2862,7 @@ void G1CollectedHeap::collection_set_iterate_from(HeapRegion* r,
 
   assert(r->in_collection_set(),
          "Start region must be a member of the collection set.");
+  // 处理本线程的第一个分区
   HeapRegion* cur = r;
   while (cur != NULL) {
     HeapRegion* next = cur->next_in_collection_set();
@@ -2868,9 +2872,11 @@ void G1CollectedHeap::collection_set_iterate_from(HeapRegion* r,
     }
     cur = next;
   }
+  // 如果本线程已经处理完属于自己处理的分区, 窃取其他线程待处理的分区
   cur = g1_policy()->collection_set();
   while (cur != r) {
     HeapRegion* next = cur->next_in_collection_set();
+    // doHeapRegion最主要的功能就是找到引用者分区并扫描分区 ScanRSClosure
     if (cl->doHeapRegion(cur) && false) {
       cl->incomplete();
       return;
@@ -4666,8 +4672,10 @@ bool G1ParEvacuateFollowersClosure::offer_termination() {
 
 void G1ParEvacuateFollowersClosure::do_void() {
   G1ParScanThreadState* const pss = par_scan_state();
+  // 处理前面插入到队列中的每一个对象 (比如扫描rset之后 存活的对象)
   pss->trim_queue();
   do {
+  // 线程处理完了， 可以尝试去窃取别的线程还没有处理的对象
     pss->steal_and_trim_queue(queues());
   } while (!offer_termination());
 }

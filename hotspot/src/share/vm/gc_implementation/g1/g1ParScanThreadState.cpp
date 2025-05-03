@@ -147,6 +147,7 @@ void G1ParScanThreadState::trim_queue() {
   StarTask ref;
   do {
     // Drain the overflow stack first, so other threads can steal.
+    // 取出每一个对象, 处理
     while (_refs->pop_overflow(ref)) {
       if (!_refs->try_push_to_taskqueue(ref)) {
         dispatch_reference(ref);

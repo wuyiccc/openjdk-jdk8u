@@ -193,6 +193,7 @@ public:
 
     // We claim cards in block so as to recude the contention. The block size is determined by
     // the G1RSetScanBlockSize parameter.
+    // 这里的_block_size 表示一次性要扫描多少个分区块, 例如rset的细粒度prt表存储, 则一次处理64个元素
     size_t jump_to_card = hrrs->iter_claimed_next(_block_size);
     for (size_t current_card = 0; iter.has_next(card_index); current_card++) {
       if (current_card >= jump_to_card + _block_size) {
@@ -204,7 +205,7 @@ public:
       gclog_or_tty->print("Rem set iteration yielded card [" PTR_FORMAT ", " PTR_FORMAT ").\n",
                           card_start, card_start + CardTableModRefBS::card_size_in_words);
 #endif
-
+      // 找到引用者的分区地址, 这里不是引用者的对象地址
       HeapRegion* card_region = _g1h->heap_region_containing(card_start);
       _cards++;
 
@@ -213,6 +214,7 @@ public:
       }
 
       // If the card is dirty, then we will scan it during updateRS.
+      // 只有引用者不在cset才需要扫描, 因为这里是处理rset根, 在cset的分区肯定会被回收, 如果引用者还没有被处理, 则处理这个分区
       if (!card_region->in_collection_set() &&
           !_ct_bs->is_card_dirty(card_index)) {
         scanCard(card_index, card_region);
@@ -220,6 +222,7 @@ public:
     }
     if (!_try_claimed) {
       // Scan the strong code root list attached to the current region
+      // 这里处理编译代码
       scan_strong_code_roots(r);
 
       hrrs->set_iter_complete();
@@ -239,11 +242,13 @@ void G1RemSet::scanRS(G1ParPushHeapRSClosure* oc,
                       CodeBlobClosure* code_root_cl,
                       uint worker_i) {
   double rs_time_start = os::elapsedTime();
+  // 在这里可以看出每个gc线程都只会针对部分的分区处理, 这也就是为什么它们之间能够并行运行的原因
   HeapRegion *startRegion = _g1->start_cset_region_for_worker(worker_i);
 
   ScanRSClosure scanRScl(oc, code_root_cl, worker_i);
-
+  // 第一次扫描, 处理一般对象
   _g1->collection_set_iterate_from(startRegion, &scanRScl);
+  // 第二次扫描, 处理代码对象
   scanRScl.set_try_claimed();
   _g1->collection_set_iterate_from(startRegion, &scanRScl);
 
@@ -293,6 +298,7 @@ public:
 void G1RemSet::updateRS(DirtyCardQueue* into_cset_dcq, uint worker_i) {
   G1GCParPhaseTimesTracker x(_g1p->phase_times(), G1GCPhaseTimes::UpdateRS, worker_i);
   // Apply the given closure to all remaining log entries.
+  // 使用closure处理尚未处理的dcq
   RefineRecordRefsIntoCSCardTableEntryClosure into_cset_update_rs_cl(_g1, into_cset_dcq);
 
   _g1->iterate_dirty_card_closure(&into_cset_update_rs_cl, into_cset_dcq, false, worker_i);
@@ -323,11 +329,13 @@ void G1RemSet::oops_into_collection_set_do(G1ParPushHeapRSClosure* oc,
   // are wholly 'free' of live objects. In the event of an evacuation
   // failure the cards/buffers in this queue set are passed to the
   // DirtyCardQueueSet that is used to manage RSet updates
+  // 这里新增dcq, 主要是之前根扫描的时候 gc失败要保留的引用关系, 或者对象复制转移的时候需要重新处理的引用关系(G1ParScanClosure)
   DirtyCardQueue into_cset_dcq(&_g1->into_cset_dirty_card_queue_set());
 
   assert((ParallelGCThreads > 0) || worker_i == 0, "invariant");
-
+  // 更新rset gc线程处理白区的dcq, 只是处理的dcq对象不同
   updateRS(&into_cset_dcq, worker_i);
+  // 扫描rset
   scanRS(oc, code_root_cl, worker_i);
 
   // We now clear the cached values of _cset_rs_update_cl for this worker

@@ -69,6 +69,8 @@ void HeapRegionDCTOC::walk_mem_region(MemRegion mr,
   // not considered dead, either because it is marked (in the mark bitmap)
   // or it was allocated after marking finished, then we add it. Otherwise
   // we can safely ignore the object.
+    // 从内存块所在的分区头部(第一个字节)开始处理, 这里的bottom已经指向了mr中第一个对象的地址
+    // top是最后一个对象的地址, 所以这个循环主要是遍历这512字节里面所有的对象
   if (!g1h->is_obj_dead(oop(cur), _hr)) {
     oop_size = oop(cur)->oop_iterate(_rs_scan, mr);
   } else {
@@ -86,15 +88,20 @@ void HeapRegionDCTOC::walk_mem_region(MemRegion mr,
       if (!g1h->is_obj_dead(cur_oop, _hr)) {
         // Bottom lies entirely below top, so we can call the
         // non-memRegion version of oop_iterate below.
+        // 这里遍历每这个引用对象的每一个field, 当发现field指向的对象(被引用者)在cset中的时候
+        // 则把对象放入队列中, 如果不在则跳过这个field
         cur_oop->oop_iterate(_rs_scan);
       }
       cur = next_obj;
       cur_oop = oop(cur);
       oop_size = _hr->block_size(cur);
+        // 从内存块所在的分区头部(第一个字节)开始处理, 这里的bottom已经指向了mr中第一个对象的地址
+        // top是最后一个对象的地址, 所以这个循环主要是遍历这512字节里面所有的对象
       next_obj = cur + oop_size;
     }
 
     // Last object. Need to do dead-obj filtering here too.
+    // 最后一个对象可能跨内存块, 这就是为什么最后一个对象需要特殊处理
     if (!g1h->is_obj_dead(oop(cur), _hr)) {
       oop(cur)->oop_iterate(_rs_scan, mr);
     }

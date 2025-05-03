@@ -32,6 +32,8 @@
 template <class T> void G1ParScanThreadState::do_oop_evac(T* p, HeapRegion* from) {
   assert(!oopDesc::is_null(oopDesc::load_decode_heap_oop(p)),
          "Reference should not be NULL here as such are never pushed to the task queue.");
+  // 这里的p其实已经就是引用的field了
+
   oop obj = oopDesc::load_decode_heap_oop_not_null(p);
 
   // Although we never intentionally push references outside of the collection
@@ -43,10 +45,13 @@ template <class T> void G1ParScanThreadState::do_oop_evac(T* p, HeapRegion* from
     oop forwardee;
     markOop m = obj->mark();
     if (m->is_marked()) {
+      // 如果对象已经标记, 说明对象已经被复制了
       forwardee = (oop) m->decode_pointer();
     } else {
+    // 如果对象没有标记, 复制对象到新的分区
       forwardee = copy_to_survivor_space(in_cset_state, obj, m);
     }
+    // 更新引用者field所引用对象的地址
     oopDesc::encode_store_heap_oop(p, forwardee);
   } else if (in_cset_state.is_humongous()) {
     _g1h->set_humongous_is_live(obj);
@@ -56,6 +61,7 @@ template <class T> void G1ParScanThreadState::do_oop_evac(T* p, HeapRegion* from
   }
 
   assert(obj != NULL, "Must be");
+  // 最后要维护一下新生成对象的rset
   update_rs(from, p, queue_num());
 }
 
@@ -113,9 +119,11 @@ template <class T> inline void G1ParScanThreadState::deal_with_reference(T* ref_
     // Note: we can use "raw" versions of "region_containing" because
     // "obj_to_scan" is definitely in the heap, and is not in a
     // humongous region.
+    // 一般对象的处理
     HeapRegion* r = _g1h->heap_region_containing_raw(ref_to_scan);
     do_oop_evac(ref_to_scan, r);
   } else {
+  // 这里就是处理前面扫描到的数组对象, 并且长度超出限制, 所以这里设置特殊的标志位, 待处理
     do_oop_partial_array((oop*)ref_to_scan);
   }
 }

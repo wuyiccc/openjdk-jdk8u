@@ -55,7 +55,8 @@
 // Forward declarations
 class G1BlockOffsetSharedArray;
 class G1OffsetTableContigSpace;
-
+// 根据reset寻找对象引用的时候, 因为引用对象仅仅精确到卡表, 并没办法确定512字节的卡表区域中
+// 第一个对象地址的开头, 如果不用这个G1BlockOffsetTable存储结构, 我们就得从当前HeapRegion从头开始扫描直到扫描到卡表的第一个对象
 class G1BlockOffsetTable VALUE_OBJ_CLASS_SPEC {
   friend class VMStructs;
 protected:

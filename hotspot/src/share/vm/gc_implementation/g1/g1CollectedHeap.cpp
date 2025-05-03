@@ -4623,7 +4623,12 @@ void G1ParCopyClosure<barrier, do_mark_object>::do_oop_work(T* p) {
     }
     // The object is not in collection set. If we're a root scanning
     // closure during an initial mark pause then attempt to mark the object.
+    // 如果发现处于并发标记周期前的ygc, 则需要把对象放入到标记栈
+    // do_mark_object是一个模板参数, 当进行一般ygc的时候, 参数设置为G1MarkNone,
+    // 当发现开启了并发标记, 则设置为G1MarkFromRoot
     if (do_mark_object == G1MarkFromRoot) {
+    // 这里的mark_object其实就是调用_cm->grayRoot, 把这个对象标记为晦色,
+    // 在并发标记的时候作为根
       mark_object(obj);
     }
   }

@@ -921,17 +921,22 @@ void G1CollectorPolicy::record_concurrent_pause() {
     _trace_gen0_time_data.record_yield_time(yield_ms);
   }
 }
-
+// 判断是否需要开始并发标记
 bool G1CollectorPolicy::need_to_start_conc_mark(const char* source, size_t alloc_word_size) {
   if (_g1->concurrent_mark()->cmThread()->during_cycle()) {
     return false;
   }
-
+  // InitiatingHeapOccupancyPercent 并发标记阈值
+  // 当ygc之后, 达到阈值InitiatingHeapOccupancyPercent的时候才会触发并发标记
   size_t marking_initiating_used_threshold =
     (_g1->capacity() / 100) * InitiatingHeapOccupancyPercent;
   size_t cur_used_bytes = _g1->non_young_capacity_bytes();
   size_t alloc_byte_size = alloc_word_size * HeapWordSize;
-
+  // 当前已经分配的内存+即将分配的内存 > 内存总容量的45%就可以开始并发标记了
+  // 由参数-XX:+ConcGCThreads(默认为gc线程数的1/4, 即-XX:+ParallelGCThreads/4)控制启动数量
+  // 每个线程每次只扫描一个分区, 从而标记出存活对象, 在标记的时候还会计算存活的数量,
+  // 只要一个对象被标记, 同时会计算字节数, 并计入分区空间
+  // 这个并发标记子阶段不需要stw, 与mutator线程并行运行
   if ((cur_used_bytes + alloc_byte_size) > marking_initiating_used_threshold) {
     if (gcs_are_young() && !_last_young_gc) {
       ergo_verbose5(ErgoConcCycles,

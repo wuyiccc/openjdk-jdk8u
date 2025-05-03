@@ -278,6 +278,7 @@ class markOopDesc: public oopDesc {
     // Use xor instead of &~ to provide one extra tag-bit check.
     return (ObjectMonitor*) (value() ^ monitor_value);
   }
+  // 判断对象是否处于monitor状态
   bool has_displaced_mark_helper() const {
     return ((value() & unlocked_value) == 0);
   }

@@ -131,7 +131,8 @@ void G1RootProcessor::evacuate_roots(OopClosure* scan_non_heap_roots,
   // First scan the shared roots.
   double ext_roots_start = os::elapsedTime();
   G1GCPhaseTimes* phase_times = _g1h->g1_policy()->phase_times();
-
+ // 使用BufferingOopClosure 主要是为了缓存对象, 然后一次性处理, 大小为1024,
+ // 溢出的时候先处理是为了提高处理效率
   BufferingOopClosure buf_scan_non_heap_roots(scan_non_heap_roots);
   BufferingOopClosure buf_scan_non_heap_weak_roots(scan_non_heap_weak_roots);
 
@@ -140,7 +141,7 @@ void G1RootProcessor::evacuate_roots(OopClosure* scan_non_heap_roots,
 
   // CodeBlobClosures are not interoperable with BufferingOopClosures
   G1CodeBlobClosure root_code_blobs(scan_non_heap_roots);
-
+  // java根: 主要是类加载器和线程栈
   process_java_roots(strong_roots,
                      trace_metadata ? scan_strong_clds : NULL,
                      scan_strong_clds,
@@ -154,11 +155,13 @@ void G1RootProcessor::evacuate_roots(OopClosure* scan_non_heap_roots,
   if (trace_metadata) {
     worker_has_discovered_all_strong_classes();
   }
-
+  // 处理jvm根, 通常是全局对象, 比如Universe, JNIHandles, ObjectSynchronizer, FlayProfiler
+  // Management, JvmtiExport, SystemDictionary, StringTable
   process_vm_roots(strong_roots, weak_roots, phase_times, worker_i);
   process_string_table_roots(weak_roots, phase_times, worker_i);
   {
     // Now the CM ref_processor roots.
+    // 处理引用发现
     G1GCParPhaseTimesTracker x(phase_times, G1GCPhaseTimes::CMRefRoots, worker_i);
     if (!_process_strong_tasks.is_task_claimed(G1RP_PS_refProcessor_oops_do)) {
       // We need to treat the discovered reference lists of the
@@ -202,12 +205,13 @@ void G1RootProcessor::evacuate_roots(OopClosure* scan_non_heap_roots,
   // to make sure we remove any oops into the CSet (which will show up
   // as implicitly live).
   {
+  // 在混合回收的时候, 把并发标记中已经失效的引用关系移除, YGC并不会执行到这里
     G1GCParPhaseTimesTracker x(phase_times, G1GCPhaseTimes::SATBFiltering, worker_i);
     if (!_process_strong_tasks.is_task_claimed(G1RP_PS_filter_satb_buffers) && _g1h->mark_in_progress()) {
       JavaThread::satb_mark_queue_set().filter_thread_buffers();
     }
   }
-
+  // 等待所有的任务结束
   _process_strong_tasks.all_tasks_completed();
 }
 
@@ -271,6 +275,7 @@ void G1RootProcessor::process_java_roots(OopClosure* strong_roots,
 
   {
     G1GCParPhaseTimesTracker x(phase_times, G1GCPhaseTimes::ThreadRoots, worker_i);
+    // 遍历所有的JavaThread和VMThread
     Threads::possibly_parallel_oops_do(strong_roots, thread_stack_clds, strong_code);
   }
 }

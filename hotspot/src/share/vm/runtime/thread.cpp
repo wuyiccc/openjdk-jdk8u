@@ -837,12 +837,14 @@ bool Thread::claim_oops_do_par_case(int strong_roots_parity) {
 
 void Thread::oops_do(OopClosure* f, CLDClosure* cld_f, CodeBlobClosure* cf) {
   if (active_handles() != NULL) {
+  // 处理jni本地代码栈
     active_handles()->oops_do(f);
   }
   // Do oop for ThreadShadow
   // 处理ThreadShadow::_pending_exception
   f->do_oop((oop*)&_pending_exception);
   // 获取Thread类中的_handle_area变量的值
+  // 处理jvm内部本地方法栈
   handle_area()->oops_do(f);
 }
 
@@ -2753,6 +2755,7 @@ void JavaThread::oops_do(OopClosure* f, CLDClosure* cld_f, CodeBlobClosure* cf) 
     RememberProcessedThread rpt(this);
 
     // Traverse the privileged stack
+    // privileged stack 用于实现java安全功能的类
     if (_privileged_stack_top != NULL) {
       _privileged_stack_top->oops_do(f);
     }
@@ -2765,11 +2768,13 @@ void JavaThread::oops_do(OopClosure* f, CLDClosure* cld_f, CodeBlobClosure* cf) 
     }
 
     // Traverse the monitor chunks
+    // 遍历monitor块
     for (MonitorChunk* chunk = monitor_chunks(); chunk != NULL; chunk = chunk->next()) {
       chunk->oops_do(f);
     }
 
     // Traverse the execution stack
+    // 遍历栈
     for(StackFrameStream fst(this); !fst.is_done(); fst.next()) {
       fst.current()->oops_do(f, cld_f, cf, fst.register_map());
     }
@@ -2783,6 +2788,7 @@ void JavaThread::oops_do(OopClosure* f, CLDClosure* cld_f, CodeBlobClosure* cf) 
   assert(vframe_array_head() == NULL, "deopt in progress at a safepoint!");
   // If we have deferred set_locals there might be oops waiting to be
   // written
+  // 遍历jvmti
   GrowableArray<jvmtiDeferredLocalVariableSet*>* list = deferred_locals();
   if (list != NULL) {
     for (int i = 0; i < list->length(); i++) {
@@ -2792,6 +2798,7 @@ void JavaThread::oops_do(OopClosure* f, CLDClosure* cld_f, CodeBlobClosure* cf) 
 
   // Traverse instance variables at the end since the GC may be moving things
   // around using this function
+  // 遍历这些对象, 这些对象也有可能引用了堆对象
   f->do_oop((oop*) &_threadObj);
   f->do_oop((oop*) &_vm_result);
   f->do_oop((oop*) &_exception_oop);

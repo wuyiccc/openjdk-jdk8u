@@ -836,6 +836,7 @@ class InterpretedArgumentOopFinder: public SignatureInfo {
   void oop_offset_do() {
     oop* addr;
     addr = (oop*)_fr->interpreter_frame_tos_at(_offset);
+    // _f为G1ParCopyClosure实例化的对象
     _f->do_oop(addr);
   }
 
@@ -985,6 +986,7 @@ void frame::oops_interpreted_do(OopClosure* f, CLDClosure* cld_f,
         //       code in the interpreter calls a blocking runtime
         //       routine which can cause this code to be executed).
         //       (was bug gri 7/27/98)
+        // java解释器栈的遍历
         oops_interpreted_arguments_do(signature, has_receiver, f);
       }
     }

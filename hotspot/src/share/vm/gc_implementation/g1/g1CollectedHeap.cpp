@@ -4574,6 +4574,7 @@ void G1ParCopyHelper::do_klass_barrier(T* p, oop new_obj) {
 
 template <G1Barrier barrier, G1Mark do_mark_object>
 template <class T>
+// 把对象复制到新分区(survivor/老年代分区)
 void G1ParCopyClosure<barrier, do_mark_object>::do_oop_work(T* p) {
   T heap_oop = oopDesc::load_heap_oop(p);
 
@@ -4589,9 +4590,12 @@ void G1ParCopyClosure<barrier, do_mark_object>::do_oop_work(T* p) {
   if (state.is_in_cset()) {
     oop forwardee;
     markOop m = obj->mark();
+    // 对象是否已经复制完成
     if (m->is_marked()) {
+    // 如果复制完成, 则直接找到新的对象
       forwardee = (oop) m->decode_pointer();
     } else {
+    // 如果对象还没有复制, 则复制新的对象
       forwardee = _par_scan_state->copy_to_survivor_space(state, obj, m);
     }
     assert(forwardee != NULL, "forwardee should not be NULL");
@@ -4599,6 +4603,7 @@ void G1ParCopyClosure<barrier, do_mark_object>::do_oop_work(T* p) {
     if (do_mark_object != G1MarkNone && forwardee != obj) {
       // If the object is self-forwarded we don't need to explicitly
       // mark it, the evacuation failure protocol will do so.
+      // 如果对象复制成功, 则把新对象的地址设置到老对象的对象头
       mark_forwarded_object(obj, forwardee);
     }
 
@@ -4606,6 +4611,7 @@ void G1ParCopyClosure<barrier, do_mark_object>::do_oop_work(T* p) {
       do_klass_barrier(p, forwardee);
     }
   } else {
+  // 对于不在cset中的对象, 先把对象标记为活的, 在并发标记的时候作为根对象
     if (state.is_humongous()) {
       _g1->set_humongous_is_live(obj);
     }
@@ -4617,6 +4623,7 @@ void G1ParCopyClosure<barrier, do_mark_object>::do_oop_work(T* p) {
   }
 
   if (barrier == G1BarrierEvac) {
+  // 如果是evac失败的情况, 则需要将对象记录到一个特殊的队列中, 在最后redirty的时候需要重构rset
     _par_scan_state->update_rs(_from, p, _worker_id);
   }
 }
@@ -4682,7 +4689,7 @@ class G1KlassScanClosure : public KlassClosure {
       // Tell the closure that this klass is the Klass to scavenge
       // and is the one to dirty if oops are left pointing into the young gen.
       _closure->set_scanned_klass(klass);
-
+      // 通过G1ParCopyHelper来活跃的对象复制到新的分区中
       klass->oops_do(_closure);
 
       _closure->set_scanned_klass(NULL);
@@ -4817,7 +4824,7 @@ public:
       }
 
       pss.start_strong_roots();
-
+      // 处理根
       _root_processor->evacuate_roots(strong_root_cl,
                                       weak_root_cl,
                                       strong_cld_cl,
@@ -4826,6 +4833,7 @@ public:
                                       worker_id);
 
       G1ParPushHeapRSClosure push_heap_rs_cl(_g1h, &pss);
+      // 扫描dcqs中剩下的dcq(前面根处理加入的数据), 以及把rset作为根处理
       _root_processor->scan_remembered_sets(&push_heap_rs_cl,
                                             weak_root_cl,
                                             worker_id);
@@ -4833,6 +4841,7 @@ public:
 
       {
         double start = os::elapsedTime();
+        // 开始复制
         G1ParEvacuateFollowersClosure evac(_g1h, &pss, _queues, &_terminator);
         // 将转移队列中存放的对象一个接一个的转移
         evac.do_void();

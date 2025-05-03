@@ -112,7 +112,7 @@ void G1DefaultAllocator::abandon_gc_alloc_regions() {
 
 G1ParGCAllocBuffer::G1ParGCAllocBuffer(size_t gclab_word_size) :
   ParGCAllocBuffer(gclab_word_size), _retired(true) { }
-
+// plab Per Thread allocate buffer 每个gc线程用户复制存活对象的缓冲区
 HeapWord* G1ParGCAllocator::allocate_direct_or_new_plab(InCSetState dest,
                                                         size_t word_sz,
                                                         AllocationContext_t context) {

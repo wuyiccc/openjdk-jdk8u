@@ -226,19 +226,29 @@ oop G1ParScanThreadState::copy_to_survivor_space(InCSetState const state,
   const AllocationContext_t context = from_region->allocation_context();
 
   uint age = 0;
+  // 判断对象是要到survivor还是old区, 判断的依据是根据对象age, 这里的ageTable是一个数组, 描述不同的age所用到的总空间,
+  // 当发现对象超过晋升的阈值, 或者survivor不能存放的时候需要把对象晋升到老年代分区
   InCSetState dest_state = next_state(state, old_mark, age);
   // 分配一个同样大小的新对象
   HeapWord* obj_ptr = _g1_par_allocator->plab_allocate(dest_state, word_sz, context);
 
   // PLAB allocations should succeed most of the time, so we'll
   // normally check against NULL once and that's it.
+  // 使用PLAB方法直接在PLAB中分配新的对象
   if (obj_ptr == NULL) {
+      // 如果分配失败, 则尝试分配一个PLAB或者直接在堆中分配对象, 这里和tlab类似, 先计算是否需要分配一个新的plab, 也是由参数控制,
+      // 对于新生代分区, plab的大小为16kb(32位的jvm， 32k为64位jvm), 由YoungPLABSize控制, 对于老年代plab的大小为4KB(32JVM), 由OldPLABSize控制
+      // 还有一个参数由ParallelGCBufferWastePct控制, 表示PLAB浪费的比例, 当PLAB剩余的空间小于PLABSize*10%, 即1634或者409字节(新生代/老年代),
+      // 可以分配一个新的PLAB, 否则直接在堆中分配, 同样的道理, 如果要分配一个新的PLAB的时候, 需要把PLAB里面碎片的部分填充为dummy对象
     obj_ptr = _g1_par_allocator->allocate_direct_or_new_plab(dest_state, word_sz, context);
     if (obj_ptr == NULL) {
+      // 仍然失败, 如果此次尝试是在survivor中, 则再次尝试在老年代区域分配
+      // 如果此次尝试是在老年代分配, 则直接报错, 因为上面已经尝试过了
       obj_ptr = allocate_in_next_plab(state, &dest_state, word_sz, context);
       if (obj_ptr == NULL) {
         // This will either forward-to-self, or detect that someone else has
         // installed a forwarding pointer.
+        // 还是失败, 说明无法复制对象, 需要把对象头设置为自己
         return _g1h->handle_evacuation_failure_par(this, old);
       }
     }
@@ -269,7 +279,7 @@ oop G1ParScanThreadState::copy_to_survivor_space(InCSetState const state,
   if (forward_ptr == NULL) {
   // 如果转发成功, 则执行对象的复制
     Copy::aligned_disjoint_words((HeapWord*) old, obj_ptr, word_sz);
-
+    // 更新age信息和对象头
     if (dest_state.is_young()) {
       if (age < markOopDesc::max_age) {
         age++;
@@ -278,7 +288,10 @@ oop G1ParScanThreadState::copy_to_survivor_space(InCSetState const state,
         // In this case, we have to install the mark word first,
         // otherwise obj looks to be forwarded (the old mark word,
         // which contains the forward pointer, was copied)
+        // 对于重量级锁, 前面的mark word ptr指向的是monitor对象, 其中objectMonitor的第一个字段是oopDes, 所以要先设置old mark 再获得monitor,
+        // 最后再更新age
         obj->set_mark(old_mark);
+        // 锁对象的mark存储的对应的monitor里面
         markOop new_mark = old_mark->displaced_mark_helper()->set_age(age);
         old_mark->set_displaced_mark_helper(new_mark);
       } else {
@@ -289,6 +302,7 @@ oop G1ParScanThreadState::copy_to_survivor_space(InCSetState const state,
       obj->set_mark(old_mark);
     }
 
+    // 把字符串对象送入字符串去重队列, 由去重线程处理
     if (G1StringDedup::is_enabled()) {
       const bool is_from_young = state.is_young();
       const bool is_to_young = dest_state.is_young();
@@ -305,6 +319,8 @@ oop G1ParScanThreadState::copy_to_survivor_space(InCSetState const state,
     size_t* const surv_young_words = surviving_young_words();
     surv_young_words[young_index] += word_sz;
 
+    // 对于数组对象来说, 由于数组元素对象的长度可能会很长, 超过了ParGCArrayScanChunk(50),
+    // 那么这里就把数组原始对象放入到遍历队列中, 而不是直接把数组元素放入到遍历队列中, 防止队列溢出
     if (obj->is_objArray() && arrayOop(obj)->length() >= ParGCArrayScanChunk) {
       // We keep track of the next start index in the length field of
       // the to-space object. The actual length can be found in the
@@ -315,11 +331,15 @@ oop G1ParScanThreadState::copy_to_survivor_space(InCSetState const state,
     } else {
       HeapRegion* const to_region = _g1h->heap_region_containing_raw(obj_ptr);
       _scanner.set_region(to_region);
+      // 把obj的每一个Field对象都通过scanner
+      // 这里最终会调用klass()->oop_oop_iterate_backwords##nv_suffix(this, blk)
+      // G1ParScanClosure::do_oop_nv
       obj->oop_iterate_backwards(&_scanner);
     }
     // 返回复制出的对象的内存地址
     return obj;
   } else {
+  // 已经分配过了, 不用再分配了
     _g1_par_allocator->undo_allocation(dest_state, obj_ptr, word_sz, context);
     return forward_ptr;
   }

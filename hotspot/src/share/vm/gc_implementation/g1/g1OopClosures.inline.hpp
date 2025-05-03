@@ -84,12 +84,13 @@ inline void G1ParScanClosure::do_oop_nv(T* p) {
              (obj->is_forwarded() &&
                  obj->forwardee() == oopDesc::load_decode_heap_oop(p)),
              "p should still be pointing to obj or to its forwardee");
-
+      // 如果field成员需要回收(在cset中), 则放入队列, 准备后续复制
       _par_scan_state->push_on_queue(p);
     } else {
       if (state.is_humongous()) {
         _g1->set_humongous_is_live(obj);
       }
+      // 如果不需要, 则仅仅只需要再后面重构rset, 保持引用关系, 加入到dcq队列中
       _par_scan_state->update_rs(_from, p, _worker_id);
     }
   }

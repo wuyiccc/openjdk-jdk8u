@@ -1164,6 +1164,9 @@ public:
 
 // Calculates the number of active workers for a concurrent
 // phase.
+// 计算并发标记线程数量, 具体计算参考 JVM G1源码分析和调优的 6.4.2的讲解
+// 如果发现并发标记线程花费的时间比较多, 可以增加ParallelGCThreads线程的数量,
+// 也可以直接调整ConcGCThreads增加(最大不能超过ParallelGCThreads)
 uint ConcurrentMark::calc_parallel_marking_threads() {
   if (G1CollectedHeap::use_parallel_gc_threads()) {
     uint n_conc_workers = 0;

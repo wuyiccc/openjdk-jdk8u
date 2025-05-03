@@ -1153,6 +1153,7 @@ HeapWord* G1CollectedHeap::attempt_allocation_at_safepoint(size_t word_size,
   } else {
     HeapWord* result = humongous_obj_allocate(word_size, context);
     if (result != NULL && g1_policy()->need_to_start_conc_mark("STW humongous allocation")) {
+      // 判断要进行并发标记之后修改标记位
       g1_policy()->set_initiate_conc_mark_if_possible();
     }
     return result;
@@ -4036,6 +4037,7 @@ G1CollectedHeap::do_collection_pause_at_safepoint(double target_pause_time_ms) {
   // Record whether this pause is an initial mark. When the current
   // thread has completed its logging output and it's safe to signal
   // the CM thread, the flag's value in the policy has been reset.
+  // 判断是否处于需要并发标记状态
   bool should_start_conc_mark = g1_policy()->during_initial_mark_pause();
 
   // Inner scope for scope based logging, timers, and stats collection
@@ -4215,6 +4217,7 @@ G1CollectedHeap::do_collection_pause_at_safepoint(double target_pause_time_ms) {
         _allocator->init_gc_alloc_regions(evacuation_info);
 
         // Actually do the work...
+        // 执行ygc
         evacuate_collection_set(evacuation_info);
 
         free_collection_set(g1_policy()->collection_set(), evacuation_info);
@@ -4404,6 +4407,7 @@ G1CollectedHeap::do_collection_pause_at_safepoint(double target_pause_time_ms) {
     // running. Note: of course, the actual marking work will
     // not start until the safepoint itself is released in
     // SuspendibleThreadSet::desynchronize().
+    // 开始并发标记
     doConcurrentMark();
   }
 

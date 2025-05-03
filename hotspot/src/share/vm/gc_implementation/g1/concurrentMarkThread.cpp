@@ -88,7 +88,7 @@ void ConcurrentMarkThread::run() {
 
   while (!_should_terminate) {
     // wait until started is set.
-    // 等待开始
+    // 等待开始, 并发标记线程在创建后并不会立即启动, 在一定的条件下才能启动
     sleepBeforeNextCycle();
     if (_should_terminate) {
       break;
@@ -113,7 +113,7 @@ void ConcurrentMarkThread::run() {
           gclog_or_tty->gclog_stamp(cm()->concurrent_gc_id());
           gclog_or_tty->print_cr("[GC concurrent-root-region-scan-start]");
         }
-
+        // 并发标记启动之后, 从特殊状态的ygc初始标记结束之后的survivor分区开始进行扫描
         _cm->scanRootRegions();
 
         double scan_end = os::elapsedTime();
@@ -134,14 +134,14 @@ void ConcurrentMarkThread::run() {
       do {
         iter++;
         if (!cm()->has_aborted()) {
-        // 2. 并发标记阶段
+        // 2. 并发标记子阶段(mutator并行)
           _cm->markFromRoots();
         }
 
         double mark_end_time = os::elapsedVTime();
         double mark_end_sec = os::elapsedTime();
         _vtime_mark_accum += (mark_end_time - cycle_start);
-        // 3. 最终标记阶段
+        // 3. 最终再标记阶段(stw)
         if (!cm()->has_aborted()) {
           if (g1_policy->adaptive_young_list_length()) {
             double now = os::elapsedTime();
@@ -172,6 +172,7 @@ void ConcurrentMarkThread::run() {
             gclog_or_tty->print_cr("[GC concurrent-mark-restart-for-overflow]");
           }
         }
+        // 这里的循环是与do对应, 并发标记子阶段+最终标记子阶段可能会反复执行, 当并发标记对象时如果栈空间溢出则会继续循环
       } while (cm()->restart_for_overflow());
 
       double end_time = os::elapsedVTime();
@@ -179,7 +180,6 @@ void ConcurrentMarkThread::run() {
       // to measure it to get the vtime for this marking.  We purposely
       // neglect the presumably-short "completeCleanup" phase here.
       _vtime_accum = (end_time - _vtime_start);
-      // 5. 收尾
       if (!cm()->has_aborted()) {
         if (g1_policy->adaptive_young_list_length()) {
           double now = os::elapsedTime();
@@ -187,13 +187,14 @@ void ConcurrentMarkThread::run() {
           jlong sleep_time_ms = mmu_tracker->when_ms(now, cleanup_prediction_ms);
           os::sleep(current_thread, sleep_time_ms, false);
         }
-
+        // 4. 这里是执行清理的地方(stw), 这里同时也会进行计数, 清理仅仅是清理掉都是垃圾的heapregion区域, 并不会执行对象转移操作
         CMCleanUp cl_cl(_cm);
         VM_CGC_Operation op(&cl_cl, "GC cleanup", false /* needs_pll */);
         VMThread::execute(&op);
       } else {
         // We don't want to update the marking status if a GC pause
         // is already underway.
+        // 并发标记对象被终止, 设置一些标记
         SuspendibleThreadSetJoiner sts;
         g1h->set_marking_complete();
       }
@@ -264,6 +265,7 @@ void ConcurrentMarkThread::run() {
       // not needed any more as the concurrent mark state has been
       // already reset).
       {
+        // 这里是通知下一次gc发生的时候, 应该启动混合yc, 即要回收老年代分区
         SuspendibleThreadSetJoiner sts;
         if (!cm()->has_aborted()) {
           g1_policy->record_concurrent_mark_cleanup_completed();
@@ -280,6 +282,7 @@ void ConcurrentMarkThread::run() {
       // suspended by a collection pause.
       // We may have aborted just before the remark. Do not bother clearing the
       // bitmap then, as it has been done during mark abort.
+      // 这里是在清理工作之后交换了MarkBitMap, 次数需要对nextMarkBitmap重新置位, 便于下一次并发标记
       if (!cm()->has_aborted()) {
         SuspendibleThreadSetJoiner sts;
         _cm->clearNextBitmap();

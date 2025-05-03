@@ -445,12 +445,13 @@ void CMRootRegions::init(G1CollectedHeap* g1h, ConcurrentMark* cm) {
   _young_list = g1h->young_list();
   _cm = cm;
 }
-
+// 为并发标记准备需要扫描的根
 void CMRootRegions::prepare_for_scan() {
   assert(!scan_in_progress(), "pre-condition");
 
   // Currently, only survivors can be root regions.
   assert(_next_survivor == NULL, "pre-condition");
+  // 在并发标记的时候, 只要扫描survivor即可
   _next_survivor = _young_list->first_survivor_region();
   _scan_in_progress = (_next_survivor != NULL);
   _should_abort = false;
@@ -1196,9 +1197,11 @@ uint ConcurrentMark::calc_parallel_marking_threads() {
 void ConcurrentMark::scanRootRegion(HeapRegion* hr, uint worker_id) {
   // Currently, only survivors can be root regions.
   assert(hr->next_top_at_mark_start() == hr->bottom(), "invariant");
+  // 通过G1RootRegionScanClosure完成分区扫描处理, 最终会调用到ConcurrentMark::grayRoot
   G1RootRegionScanClosure cl(_g1h, this, worker_id);
 
   const uintx interval = PrefetchScanIntervalInBytes;
+  // 在分区处理的时候需要对整个分区完全处理, 所以需要遍历整个有效分区(bottom->top)
   HeapWord* curr = hr->bottom();
   const HeapWord* end = hr->top();
   while (curr < end) {
@@ -1221,10 +1224,11 @@ public:
   void work(uint worker_id) {
     assert(Thread::current()->is_ConcurrentGC_thread(),
            "this should only be done by a conc GC thread");
-
+    // 获取要扫描的根分区(特殊ygc结束之后, 会把survivor区作为cm扫描时候的根)
     CMRootRegions* root_regions = _cm->root_regions();
     HeapRegion* hr = root_regions->claim_next();
     while (hr != NULL) {
+    // 针对每一个分区进行处理
       _cm->scanRootRegion(hr, worker_id);
       hr = root_regions->claim_next();
     }

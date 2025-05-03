@@ -158,8 +158,10 @@ inline bool ConcurrentMark::par_mark_and_count(oop obj,
                                                HeapRegion* hr,
                                                uint worker_id) {
   HeapWord* addr = (HeapWord*)obj;
+  // 并发的标记这个地址指向的对象是活的(多个并发标记线程, 但是共享一个_nextMarkBitMap, cas操作)
   if (_nextMarkBitMap->parMark(addr)) {
     MemRegion mr(addr, word_size);
+    // 记录这个对象所在的卡表是有效的, 即标记为1
     count_region(mr, hr, worker_id);
     return true;
   }
@@ -404,6 +406,7 @@ inline void ConcurrentMark::grayRoot(oop obj, size_t word_size,
 
   if (addr < hr->next_top_at_mark_start()) {
     if (!_nextMarkBitMap->isMarked(addr)) {
+    // 标记和计数
       par_mark_and_count(obj, word_size, hr, worker_id);
     }
   }

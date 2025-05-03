@@ -131,6 +131,7 @@ inline void G1RootRegionScanClosure::do_oop_nv(T* p) {
   if (!oopDesc::is_null(heap_oop)) {
     oop obj = oopDesc::decode_heap_oop_not_null(heap_oop);
     HeapRegion* hr = _g1h->heap_region_containing((HeapWord*) obj);
+    // 完成对 对象并发标记完成和计数
     _cm->grayRoot(obj, obj->size(), _worker_id, hr);
   }
 }

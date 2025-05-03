@@ -1475,6 +1475,7 @@ void G1CollectorPolicy::update_survivors_policy(GCTracer &tracer) {
   // 真正的survivor空间就是 survivor region * TargetSurvivorRatio / 100
   // 如果TargetSurvivorRatio增大, 则用于下一次survivor的空间会变大, 即晋升到old分区的概率会减少,
   // 实际上也会导致g1给survivor分配更多的内存
+  // 这里需要注意的是预测下一次gc时候的survivor空间, 并不会缩小eden空间的region(之前eden region的预测是根据上一次gc之后的实际survivor空间来预测的)
   double max_survivor_regions_d =
                  (double) _young_list_target_length / (double) SurvivorRatio;
   // We use ceiling so that if max_survivor_regions_d is > 0.0 (but

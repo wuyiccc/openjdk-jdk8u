@@ -4157,6 +4157,8 @@ G1CollectedHeap::do_collection_pause_at_safepoint(double target_pause_time_ms) {
         // root regions as it's the only way to ensure that all the
         // objects on them have been correctly scanned before we start
         // moving them during the GC.
+        // 判断是否能够进行垃圾回收(如何已经有混合gc在处理了那么需要等待对应的操作, 扫描survivor行为完成)
+        // 等待root_regions()->scan_finished();发送通知
         bool waited = _cm->root_regions()->wait_until_scan_finished();
         double wait_time_ms = 0.0;
         if (waited) {

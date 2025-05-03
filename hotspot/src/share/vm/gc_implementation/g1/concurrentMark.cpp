@@ -1240,7 +1240,7 @@ void ConcurrentMark::scanRootRegions() {
     assert(parallel_marking_threads() <= max_parallel_marking_threads(),
            "Maximum number of marking threads exceeded");
     uint active_workers = MAX2(1U, parallel_marking_threads());
-
+    // 根据参数确定并行任务数量, 使用并行任务来对根(即survivor)分区扫描
     CMRootRegionScanTask task(this);
     if (use_parallel_marking_threads()) {
       _parallel_workers->set_active_workers((int) active_workers);
@@ -1252,6 +1252,13 @@ void ConcurrentMark::scanRootRegions() {
     // It's possible that has_aborted() is true here without actually
     // aborting the survivor scan earlier. This is OK as it's
     // mainly used for sanity checking.
+    // 通知锁, 可以进行下一次gc
+    // 因为混合gc依赖于ygc的survivor区域, 可能会发生这样一种情况,
+    // 当混合gc扫描还没有结束, 如果又发生了ygc, 那么survivor就会变化,
+    // 这对于混合gc来说是不可接受的, 因为它不能准确的标记对象,
+    // 所以在混合gc的时候一定会要求做完survivor分区的扫描之后才能再进行一次新的ygc
+    // 这个实现机制是通过锁和通知完成的, 如在do_collection或者do_collection_pause_at_safepoint真正
+    // 进行垃圾回收之前, 会调用wait_until_scan_finished判断是否能够启动垃圾回收, 这也是通过信号完成的
     root_regions()->scan_finished();
   }
 }

@@ -1319,7 +1319,7 @@ void ConcurrentMark::checkpointRootsFinal(bool clear_all_soft_refs) {
     g1h->set_marking_complete(); // So bitmap clearing isn't confused
     return;
   }
-
+  // 告诉gc这是一个非fullgc, 是其他类型的gc
   SvcGCMarker sgcm(SvcGCMarker::OTHER);
 
   if (VerifyDuringGC) {
@@ -1334,11 +1334,11 @@ void ConcurrentMark::checkpointRootsFinal(bool clear_all_soft_refs) {
   g1p->record_concurrent_mark_remark_start();
 
   double start = os::elapsedTime();
-
+  // 这里执行再标记
   checkpointRootsFinalWork();
 
   double mark_work_end = os::elapsedTime();
-
+  // 处理引用
   weakRefsWork(clear_all_soft_refs);
 
   if (has_overflown()) {
@@ -2714,12 +2714,16 @@ class G1RemarkThreadsClosure : public ThreadClosure {
         // * Weakly reachable otherwise
         // Some objects reachable from nmethods, such as the class loader (or klass_holder) of the receiver should be
         // live by the SATB invariant but other oops recorded in nmethods may behave differently.
+        // 先对nmethod进行处理, 主要是为了标记正在运行得方法活跃得栈对象, 以及弱引用对象.
+        // 莉莉上不需要进行这一步的处理, 但实际上jvm很复杂, 在一些特殊情况下通过类加载器访问到的对象都应该出现在satb, 但是satb可能存储的对象不一致,
+        // 所以遍历nmethod再次处理mutator的satb
         jt->nmethods_do(&_code_cl);
 
         jt->satb_mark_queue().apply_closure_and_empty(&_cm_satb_cl);
       }
     } else if (thread->is_VM_thread()) {
       if (thread->claim_oops_do(_is_par, _thread_parity)) {
+      // 对于非mutator, satb的变化都在共享satb中
         JavaThread::satb_mark_queue_set().shared_satb_queue()->apply_closure_and_empty(&_cm_satb_cl);
       }
     }
@@ -2740,11 +2744,12 @@ public:
       {
         ResourceMark rm;
         HandleMark hm;
-
+        // 再次处理所有线程的satb
         G1RemarkThreadsClosure threads_f(G1CollectedHeap::heap(), task, !_is_serial);
+        // 这里处理
         Threads::threads_do(&threads_f);
       }
-
+      // 再次进行标记, 这时候的标记时间非常长, 1000000000秒 超过11天, 这表示无论如何再标记都要标记完成
       do {
         task->do_marking_step(1000000000.0 /* something very large */,
                               true         /* do_termination       */,
@@ -2785,7 +2790,7 @@ void ConcurrentMark::checkpointRootsFinalWork() {
     // value originally calculated in the ConcurrentMark
     // constructor and pass values of the active workers
     // through the gang in the task.
-
+    // 这里执行标记任务
     CMRemarkTask remarkTask(this, active_workers, false /* is_serial */);
     // We will start all available threads, even if we decide that the
     // active_workers will be fewer. The extra ones will just bail out

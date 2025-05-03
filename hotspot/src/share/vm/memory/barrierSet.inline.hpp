@@ -34,6 +34,7 @@
 
 template <class T> void BarrierSet::write_ref_field_pre(T* field, oop new_val) {
   if (kind() == CardTableModRef) {
+    // 写入到stab中
     ((CardTableModRefBS*)this)->inline_write_ref_field_pre(field, new_val);
   } else {
     write_ref_field_pre_work(field, new_val);
@@ -44,6 +45,7 @@ void BarrierSet::write_ref_field(void* field, oop new_val, bool release) {
   if (kind() == CardTableModRef) {
     ((CardTableModRefBS*)this)->inline_write_ref_field(field, new_val, release);
   } else {
+  // 赋值后的处理
     write_ref_field_work(field, new_val, release);
   }
 }

@@ -342,6 +342,8 @@ inline volatile oop oopDesc::obj_field_volatile(int offset) const {
   OrderAccess::acquire();
   return value;
 }
+// bytecodeInterpreter.cpp 字节码解释执行的时候会调用这里的代码
+// 不过后面jvm都换成了模板解释执行了, 写屏障在oop_store中
 inline void oopDesc::obj_field_put(int offset, oop value) {
   UseCompressedOops ? oop_store(obj_field_addr<narrowOop>(offset), value) :
                       oop_store(obj_field_addr<oop>(offset),       value);
@@ -546,14 +548,17 @@ template <class T> inline void oop_store(T* p, oop v) {
 }
 
 template <class T> inline void oop_store(volatile T* p, oop v) {
+  // 赋值前处理: g1写入到stab中
   update_barrier_set_pre((T*)p, v);   // cast away volatile
   // Used by release_obj_field_put, so use release_store_ptr.
+  // 赋值动作
   oopDesc::release_encode_store_heap_oop(p, v);
   // When using CMS we must mark the card corresponding to p as dirty
   // with release sematics to prevent that CMS sees the dirty card but
   // not the new value v at p due to reordering of the two
   // stores. Note that CMS has a concurrent precleaning phase, where
   // it reads the card table while the Java threads are running.
+  // 赋值后处理, 这里使用的是 (*)p, 表示取的是p指向的对象, 即new obj源对象
   update_barrier_set((void*)p, v, true /* release */);    // cast away type
 }
 

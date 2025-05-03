@@ -45,9 +45,11 @@ void G1SATBCardTableModRefBS::enqueue(oop pre_val) {
   if (!JavaThread::satb_mark_queue_set().is_active()) return;
   Thread* thr = Thread::current();
   if (thr->is_Java_thread()) {
+  // 对于一般的mutator直接放入到线程队列中
     JavaThread* jt = (JavaThread*)thr;
     jt->satb_mark_queue().enqueue(pre_val);
   } else {
+  // 对于本地代码则会放入到全局共享队列中, 因为是全局共享队列, 所以需要锁
     MutexLockerEx x(Shared_SATB_Q_lock, Mutex::_no_safepoint_check_flag);
     JavaThread::satb_mark_queue_set().shared_satb_queue()->enqueue(pre_val);
   }
@@ -177,18 +179,24 @@ void
 G1SATBCardTableLoggingModRefBS::write_ref_field_work(void* field,
                                                      oop new_val,
                                                      bool release) {
+  // 这里是源对象的地址
   volatile jbyte* byte = byte_for(field);
+  // 如果源对象是新生代, 则不处理, 因为不需要记录到新生代的引用, 新生代不管在哪种回收中都会处理
+  // 所以这里不需要额外记录
   if (*byte == g1_young_gen) {
     return;
   }
+  // 保证数据的可见性
   OrderAccess::storeload();
   if (*byte != dirty_card) {
     *byte = dirty_card;
     Thread* thr = Thread::current();
     if (thr->is_Java_thread()) {
+      // 对于一般的线程直接放入到dcq队列中
       JavaThread* jt = (JavaThread*)thr;
       jt->dirty_card_queue().enqueue(byte);
     } else {
+      // 对于本地代码则放入到全局共享队列中, 因为是全局共享队列所以需要锁
       MutexLockerEx x(Shared_DirtyCardQ_lock,
                       Mutex::_no_safepoint_check_flag);
       _dcqs.shared_dirty_card_queue()->enqueue(byte);

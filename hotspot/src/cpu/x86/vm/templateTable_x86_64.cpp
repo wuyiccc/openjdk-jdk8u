@@ -145,6 +145,7 @@ static void do_oop_store(InterpreterMacroAssembler* _masm,
         } else {
           __ leaq(rdx, obj);
         }
+        // 这个就是处理satb, 通过汇编函数调用g1_wb_pre
         __ g1_write_barrier_pre(rdx /* obj */,
                                 rbx /* pre_val */,
                                 r15_thread /* thread */,
@@ -152,15 +153,18 @@ static void do_oop_store(InterpreterMacroAssembler* _masm,
                                 val != noreg /* tosca_live */,
                                 false /* expand_call */);
         if (val == noreg) {
+        // 赋值, 对于赋值为空的对象不需要dcq
           __ store_heap_oop_null(Address(rdx, 0));
         } else {
           // G1 barrier needs uncompressed oop for region cross check.
+          // 赋值
           Register new_val = val;
           if (UseCompressedOops) {
             new_val = rbx;
             __ movptr(new_val, val);
           }
           __ store_heap_oop(Address(rdx, 0), val);
+          // 处理dcq, 通过汇编函数调用 g1_wb_post
           __ g1_write_barrier_post(rdx /* store_adr */,
                                    new_val /* new_val */,
                                    r15_thread /* thread */,
@@ -2500,7 +2504,7 @@ void TemplateTable::jvmti_post_field_mod(Register cache, Register index, bool is
     __ bind(L1);
   }
 }
-
+// 模板解释器处理putfield指令, 这里会调用汇编的do_oop_store
 void TemplateTable::putfield_or_static(int byte_no, bool is_static) {
   transition(vtos, vtos);
 
@@ -2572,6 +2576,7 @@ void TemplateTable::putfield_or_static(int byte_no, bool is_static) {
     __ pop(atos);
     if (!is_static) pop_and_check_object(obj);
     // Store into the field
+    // 这里调用do_oop_stor和字节码解释器的oop_store功能类似, 都是处理写前屏障, 写动作, 写后屏障
     do_oop_store(_masm, field, rax, _bs->kind(), false);
     if (!is_static) {
       patch_bytecode(Bytecodes::_fast_aputfield, bc, rbx, true, byte_no);

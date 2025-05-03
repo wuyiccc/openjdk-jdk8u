@@ -1471,6 +1471,10 @@ void G1CollectorPolicy::update_max_gc_locker_expansion() {
 
 // Calculates survivor space parameters.
 void G1CollectorPolicy::update_survivors_policy(GCTracer &tracer) {
+  // 计算期望survivor空间的大小, 然后通过参数TargetSurvivorRatio对整个survivor空间进行划分
+  // 真正的survivor空间就是 survivor region * TargetSurvivorRatio / 100
+  // 如果TargetSurvivorRatio增大, 则用于下一次survivor的空间会变大, 即晋升到old分区的概率会减少,
+  // 实际上也会导致g1给survivor分配更多的内存
   double max_survivor_regions_d =
                  (double) _young_list_target_length / (double) SurvivorRatio;
   // We use ceiling so that if max_survivor_regions_d is > 0.0 (but

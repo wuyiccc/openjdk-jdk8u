@@ -1747,7 +1747,7 @@ class FinalCountDataUpdateClosure: public CMCountDataClosureBase {
                               BitMap* region_bm,
                               BitMap* card_bm) :
     CMCountDataClosureBase(g1h, region_bm, card_bm) { }
-
+  // 计数处理
   bool doHeapRegion(HeapRegion* hr) {
 
     if (hr->continuesHumongous()) {
@@ -1767,11 +1767,14 @@ class FinalCountDataUpdateClosure: public CMCountDataClosureBase {
     assert(hr->bottom() <= ntams && ntams <= hr->end(), "Preconditions.");
 
     // Mark the allocated-since-marking portion...
+    // 如果在开始标记之后又有新的对象分配, 需要额外处理
     if (ntams < top) {
       // This definitely means the region has live objects.
+      // 标记该分区有活跃的对象
       set_bit_for_region(hr);
 
       // Now set the bits in the card bitmap for [ntams, top)
+      // 把[ntams, top)范围内的对象都标记到卡表 nextAtMarkStart
       BitMap::idx_t start_idx = _cm->card_bitmap_index_for(ntams);
       BitMap::idx_t end_idx = _cm->card_bitmap_index_for(top);
 
@@ -1796,6 +1799,7 @@ class FinalCountDataUpdateClosure: public CMCountDataClosureBase {
     }
 
     // Set the bit for the region if it contains live data
+    // 再次标记该分区有活跃的对象
     if (hr->next_marked_bytes() > 0) {
       set_bit_for_region(hr);
     }
@@ -1829,10 +1833,11 @@ public:
       _n_workers = 1;
     }
   }
-
+  // 并行处理对分区进行计数, 每个线程处理不同的分区, 最后汇总到卡表中
   void work(uint worker_id) {
     assert(worker_id < _n_workers, "invariant");
 
+    // 处理已经标记的对象, 还有所有新分配的对象都认为是活跃得
     FinalCountDataUpdateClosure final_update_cl(_g1h,
                                                 _actual_region_bm,
                                                 _actual_card_bm);
@@ -2006,7 +2011,7 @@ public:
   }
 
 };
-
+// stw
 void ConcurrentMark::cleanup() {
   // world is stopped at this checkpoint
   assert(SafepointSynchronize::is_at_safepoint(),
@@ -2039,6 +2044,8 @@ void ConcurrentMark::cleanup() {
   uint n_workers;
 
   // Do counting once more with the world stopped for good measure.
+  // 对分区进行计数, 这样可以确定存活的对象
+  // 通过G1ParFinalCountTask并行执行
   G1ParFinalCountTask g1_par_count_task(g1h, &_region_bm, &_card_bm);
 
   if (G1CollectedHeap::use_parallel_gc_threads()) {
@@ -2102,11 +2109,13 @@ void ConcurrentMark::cleanup() {
   }
 
   // Install newly created mark bitMap as "prev".
+  // 把当前的bitmap和prevbitmap互换, 说明这一次所有的内存已经清理结束了
   swapMarkBitMaps();
 
   g1h->reset_gc_time_stamp();
 
   // Note end of marking in all heap regions.
+  // 对整个堆分区增加一些额外信息, 通过并行任务G1ParNoteEndTask完成
   G1ParNoteEndTask g1_par_note_end_task(g1h, &_cleanup_list);
   if (G1CollectedHeap::use_parallel_gc_threads()) {
     g1h->set_par_threads((int)n_workers);
@@ -2129,6 +2138,8 @@ void ConcurrentMark::cleanup() {
 
   // call below, since it affects the metric by which we sort the heap
   // regions.
+  // 当G1ScrubRemSets打开(默认值为true, 这是一个开发选项, 发布版本不能更改)
+  // 通过G1ParScrubRemSetTask并行清理rset, 这会影响cset的选择
   if (G1ScrubRemSets) {
     double rs_scrub_start = os::elapsedTime();
     G1ParScrubRemSetTask g1_par_scrub_rs_task(g1h, &_region_bm, &_card_bm);
@@ -2151,6 +2162,7 @@ void ConcurrentMark::cleanup() {
 
   // this will also free any regions totally full of garbage objects,
   // and sort the regions.
+  // 对老年代回收集合进行处理, 主要是添加cset chooser并对分区排序
   g1h->g1_policy()->record_concurrent_mark_cleanup_end((int)n_workers);
 
   // Statistics.
@@ -2183,6 +2195,8 @@ void ConcurrentMark::cleanup() {
   g1h->increment_total_collections();
 
   // Clean out dead classes and update Metaspace sizes.
+  // 当并发标记子阶段完成之后, 已经知道了哪些类加载器里面加载的java类是活跃的,
+  // 所以可以在这里清除
   if (ClassUnloadingWithConcurrentMark) {
     ClassLoaderDataGraph::purge();
   }
@@ -2190,6 +2204,7 @@ void ConcurrentMark::cleanup() {
 
   // We reclaimed old regions so we should calculate the sizes to make
   // sure we update the old gen/space data.
+  // 因为可能回收了空的老年代分区, 所以需要更新大小信息
   g1h->g1mm()->update_sizes();
   g1h->allocation_context_stats().update_after_mark();
 

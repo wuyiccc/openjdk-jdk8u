@@ -1899,6 +1899,7 @@ public:
     if (hr->used() > 0 && hr->max_live_bytes() == 0 && !hr->is_young()) {
       _freed_bytes += hr->used();
       hr->set_containing_set(NULL);
+      // 把垃圾老年代分区加入到待释放队列
       if (hr->isHumongous()) {
         assert(hr->startsHumongous(), "we should only see starts humongous");
         _humongous_regions_removed.increment(1u, hr->capacity());
@@ -1908,6 +1909,7 @@ public:
         _g1->free_region(hr, _local_cleanup_list, true);
       }
     } else {
+    // 把对象的HRRSCleanupTask加入到rset清除任务中
       hr->rem_set()->do_cleanup_work(_hrrs_cleanup_task);
     }
 
@@ -1944,6 +1946,7 @@ public:
     double start = os::elapsedTime();
     FreeRegionList local_cleanup_list("Local Cleanup List");
     HRRSCleanupTask hrrs_cleanup_task;
+    // 对所有分区处理, 处理工作在G1NoteEndOfConcMarkClosure中
     G1NoteEndOfConcMarkClosure g1_note_end(_g1h, &local_cleanup_list,
                                            &hrrs_cleanup_task);
     if (G1CollectedHeap::use_parallel_gc_threads()) {
@@ -1956,6 +1959,7 @@ public:
     assert(g1_note_end.complete(), "Shouldn't have yielded!");
 
     // Now update the lists
+    // 有大对象分区和老年代分区
     _g1h->remove_from_old_sets(g1_note_end.old_regions_removed(), g1_note_end.humongous_regions_removed());
     {
       MutexLockerEx x(ParGCRareEvent_lock, Mutex::_no_safepoint_check_flag);
@@ -1970,7 +1974,7 @@ public:
       // still be working on its previous contents). So we do the
       // printing here, before we append the new regions to the global
       // cleanup list.
-
+      // 打印gc信息, 同时添加释放表, 清除SPRT信息
       G1HRPrinter* hr_printer = _g1h->hr_printer();
       if (hr_printer->is_active()) {
         FreeRegionListIterator iter(&local_cleanup_list);
@@ -1979,7 +1983,7 @@ public:
           hr_printer->cleanup(hr);
         }
       }
-
+      // 清除rset可能过时的结构
       _cleanup_list->add_ordered(&local_cleanup_list);
       assert(local_cleanup_list.is_empty(), "post-condition");
 
@@ -2116,6 +2120,8 @@ void ConcurrentMark::cleanup() {
 
   // Note end of marking in all heap regions.
   // 对整个堆分区增加一些额外信息, 通过并行任务G1ParNoteEndTask完成
+  // 主要是对堆分区中完全空白的老年代和大对象分区进行释放, 对于其他分区处理rset, 主要是分区的rset粒度
+  // 如果发生了变化, 那么变化前的数据结构可以被清除
   G1ParNoteEndTask g1_par_note_end_task(g1h, &_cleanup_list);
   if (G1CollectedHeap::use_parallel_gc_threads()) {
     g1h->set_par_threads((int)n_workers);

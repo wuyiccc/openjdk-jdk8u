@@ -1608,10 +1608,25 @@ public:
 
   bool doHeapRegion(HeapRegion* r) {
     // Do we have any marking information for this region?
+    // 分区被标记, 说明可以加入回收, 这个判定的
+      //依据是分区在标记结束之前是否分配对象。对于Eden、Survivor来说
+      //在YGC结束阶段时，它们的标记起始位置设置为分区的bottom，对于
+      //⽼⽣代，它们的标记位置设置为分区的top。这⼀部分的逻辑散落在很
+      //多地⽅，分析源码的时候可以通过_prev_top_at_mark_start和
+      //_next_top_at_mark_start的变化来追踪。所以这⾥Eden、Survivor和
+      //⼀些空⽩的⽼⽣代分区不会加⼊到CollectionSetChooser中。⼤对象
+      //分区的连续分区也不会加⼊，正在被分配对象的⽼⽣代分区也不会加
+      //⼊。早期的代码在通过if (!r->isHumongous() && !r->is_young())直接
+      //过滤，可读性更⾼⼀些，现在的代码需要理解整个SATB算法实现的
+      //⼀些细节。
     if (r->is_marked()) {
       // We will skip any region that's currently used as an old GC
       // alloc region (we should not consider those for collection
       // before we fill them up).
+      // 这个分区能否被加⼊到CSet Chooser中还有⼀
+        //个额外的参数G1MixedGCLiveThresholdPercent（默认值85），⽤于
+        //控制⼤对象不会加⼊到CSet（⼤对象在reclaim中处理），活跃对象占
+        //⽐应⼩于G1MixedGCLiveThresholdPercent
       if (_cset_updater.should_add(r) && !_g1h->is_old_gc_alloc_region(r)) {
         _cset_updater.add_region(r);
       }
@@ -1652,6 +1667,7 @@ G1CollectorPolicy::record_concurrent_mark_cleanup_end(int no_of_gc_threads) {
     // causes some assertion failures when the total number of
     // region is less than 8.  The code here tries to fix that.
     // Should the original code also be fixed?
+    // 设置并行工作的线程数目, 通过ParKnownGarbageTask来完成, 确定可以回收的分区
     if (no_of_gc_threads > 0) {
       const uint MinWorkUnit = MAX2(region_num / no_of_gc_threads, 1U);
       WorkUnit = MAX2(region_num / (no_of_gc_threads * OverpartitionFactor),
@@ -1667,6 +1683,7 @@ G1CollectorPolicy::record_concurrent_mark_cleanup_end(int no_of_gc_threads) {
     }
     _collectionSetChooser->prepare_for_par_region_addition(_g1->num_regions(),
                                                            WorkUnit);
+    // 主要是任务就是把分区加入到cset chooser中
     ParKnownGarbageTask parKnownGarbageTask(_collectionSetChooser,
                                             (int) WorkUnit);
     _g1->workers()->run_task(&parKnownGarbageTask);
@@ -1677,7 +1694,9 @@ G1CollectorPolicy::record_concurrent_mark_cleanup_end(int no_of_gc_threads) {
     KnownGarbageClosure knownGarbagecl(_collectionSetChooser);
     _g1->heap_region_iterate(&knownGarbagecl);
   }
-
+  // 这里对老年代分区进行排序, 排序的依据是根据每个分区的有效性
+  // 1. 可回收字节的数量
+  // 2. 回收的预测速度
   _collectionSetChooser->sort_regions();
 
   double end_sec = os::elapsedTime();

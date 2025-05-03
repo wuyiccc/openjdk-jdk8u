@@ -208,7 +208,7 @@ void HeapRegion::par_clear() {
                    (CardTableModRefBS*)G1CollectedHeap::heap()->barrier_set();
   ct_bs->clear(MemRegion(bottom(), end()));
 }
-
+// 计算分区的有效性
 void HeapRegion::calc_gc_efficiency() {
   // GC efficiency is the ratio of how much space would be
   // reclaimed over how long we predict it would take to reclaim it.
@@ -218,6 +218,7 @@ void HeapRegion::calc_gc_efficiency() {
   // Retrieve a prediction of the elapsed time for this region for
   // a mixed gc because the region will only be evacuated during a
   // mixed gc.
+  // 分区的有效性取决于可回收的字节数+回收的预测速度
   double region_elapsed_time_ms =
     g1p->predict_region_elapsed_time_ms(this, false /* for_young_gc */);
   _gc_efficiency = (double) reclaimable_bytes() / region_elapsed_time_ms;

@@ -2169,6 +2169,8 @@ void ConcurrentMark::cleanup() {
   // this will also free any regions totally full of garbage objects,
   // and sort the regions.
   // 对老年代回收集合进行处理, 主要是添加cset chooser并对分区排序
+  // 这里主要是判断哪些分区可以放入到老年代回收集合中, 主要是根据老年代分区的垃圾空闲情况,
+  // 只有达到收集的阈值才可能被加入到cset chooser, 另外会对分区进行排序, 排序的依据是gc_efficiency
   g1h->g1_policy()->record_concurrent_mark_cleanup_end((int)n_workers);
 
   // Statistics.

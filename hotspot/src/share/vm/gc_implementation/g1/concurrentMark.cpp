@@ -602,6 +602,7 @@ ConcurrentMark::ConcurrentMark(G1CollectedHeap* g1h, G1RegionToSpaceMapper* prev
   assert(_markBitMap2.covers(g1h->reserved_region()), "_markBitMap2 inconsistency");
 
   SATBMarkQueueSet& satb_qs = JavaThread::satb_mark_queue_set();
+  // satb队列长度
   satb_qs.set_buffer_size(G1SATBBufferSize);
 
   _root_regions.init(_g1h, this);
@@ -1116,7 +1117,7 @@ public:
     ResourceMark rm;
 
     double start_vtime = os::elapsedVTime();
-
+    // 当发生同步的时候, 进行等待, 否则继续
     SuspendibleThreadSet::join();
 
     assert(worker_id < _cm->active_tasks(), "invariant");
@@ -1125,8 +1126,9 @@ public:
     if (!_cm->has_aborted()) {
       do {
         double start_vtime_sec = os::elapsedVTime();
+        // 设置标记时间, G1ConcMarkStepDurationMillis的默认值是10ms, 表示并发标记子阶段在10ms内完成
         double mark_step_duration_ms = G1ConcMarkStepDurationMillis;
-
+        // 具体标记处理任务: // 1. 处理satb缓存 2. 根据已经标记的分区nextMarkingBitMap的对象进行处理, 针对已经标记的对象的每一个field进行递归并发标记
         the_task->do_marking_step(mark_step_duration_ms,
                                   true  /* do_termination */,
                                   false /* is_serial*/);
@@ -1138,6 +1140,7 @@ public:
         _cm->do_yield_check(worker_id);
 
         jlong sleep_time_ms;
+        // cm任务结束之后还可以睡一会
         if (!_cm->has_aborted() && the_task->has_aborted()) {
           sleep_time_ms =
             (jlong) (elapsed_vtime_sec * _cm->sleep_factor() * 1000.0);
@@ -1290,7 +1293,7 @@ void ConcurrentMark::markFromRoots() {
 
   // Parallel task terminator is set in "set_concurrency_and_phase()"
   set_concurrency_and_phase(active_workers, true /* concurrent */);
-
+  // 并发标记任务
   CMConcurrentMarkingTask markingTask(this, cmThread());
   if (use_parallel_marking_threads()) {
     _parallel_workers->set_active_workers((int)active_workers);
@@ -4023,6 +4026,7 @@ void CMTask::drain_satb_buffers() {
 
   // This keeps claiming and applying the closure to completed buffers
   // until we run out of buffers or we need to abort.
+  // 因为并发标记线程和mutator并发运行, 所以mutator得satb不断地在变化, 这里只对放入queue set中的satb队列处理
   while (!has_aborted() &&
          satb_mq_set.apply_closure_to_completed_buffer(&satb_cl)) {
     if (_cm->verbose_medium()) {
@@ -4040,6 +4044,8 @@ void CMTask::drain_satb_buffers() {
 
   // again, this was a potentially expensive operation, decrease the
   // limits to get the regular clock call early
+  // 因为标记需要对老年代进行处理, 可能要花费的时间比较多, 所以增加了标记检查,
+  // 如果发现有溢出, 则终止, 线程同步等待满足终止条件的情况都会设置停止标志来终止标记动作
   decrease_limits();
 }
 
@@ -4226,7 +4232,7 @@ void CMTask::do_marking_step(double time_target_ms,
   // enable stealing when the termination protocol is enabled
   // and do_marking_step() is not being called serially.
   bool do_stealing = do_termination && !is_serial;
-
+  // 根据过去运行的标记信息, 预测本次标记需要花费的时间
   double diff_prediction_ms =
     g1_policy->get_new_prediction(&_marking_step_diffs_ms);
   _time_target_ms = time_target_ms - diff_prediction_ms;
@@ -4269,9 +4275,13 @@ void CMTask::do_marking_step(double time_target_ms,
   // look at SATB buffers before the next invocation of this method.
   // If enough completed SATB buffers are queued up, the regular clock
   // will abort this task so that it restarts.
+  // 处理satb队列
   drain_satb_buffers();
   // ...then partially drain the local queue and the global stack
+  // 根据根对象标记时发现的对象开始处理
   drain_local_queue(true);
+  // 针对全局标记栈开始处理, 注意这里为了效率, 只有当全局标记栈超过1/3才会开始处理
+  // 处理的思路就是把全局标记栈的对象移入cmtask队列中, 等待处理
   drain_global_stack(true);
 
   do {
@@ -4292,6 +4302,7 @@ void CMTask::do_marking_step(double time_target_ms,
       // through scanning this region. In this case, _finger points to
       // the address where we last found a marked object. If this is a
       // fresh region, _finger points to start().
+      // 这个memregion是新增的对象, 所以从finger开始到结束全部开始标记
       MemRegion mr = MemRegion(_finger, _region_limit);
 
       if (_cm->verbose_low()) {
@@ -4317,9 +4328,15 @@ void CMTask::do_marking_step(double time_target_ms,
         giveup_current_region();
         regular_clock_call();
       } else if (_curr_region->isHumongous() && mr.start() == _curr_region->bottom()) {
+      // 如果是大对象, 则
+      // 1. 如果对象被标记, 则说明这个对象需要被作为灰对象进行处理, 处理在CMbitMapClosure::do_it中
+      // 2. 如果对象没有被标记, 那么结束这个区域的扫描
         if (_nextMarkBitMap->isMarked(mr.start())) {
           // The object is marked - apply the closure
           BitMap::idx_t offset = _nextMarkBitMap->heapWordToOffset(mr.start());
+          // 1. 调整finger, 处理本对象(准确的说是处理对象的field所指向的oop对象), 形成递归
+          // 2. 然后处理本地队列
+          // 3. 处理全局标记栈
           bitmap_closure.do_bit(offset);
         }
         // Even if this task aborted while scanning the humongous object
@@ -4327,6 +4344,7 @@ void CMTask::do_marking_step(double time_target_ms,
         giveup_current_region();
         regular_clock_call();
       } else if (_nextMarkBitMap->iterate(&bitmap_closure, mr)) {
+      // 处理本分区的标记对象, 这里会对整个分区里面的对象调用do_bit方法完成递归标记
         giveup_current_region();
         regular_clock_call();
       } else {
@@ -4360,6 +4378,7 @@ void CMTask::do_marking_step(double time_target_ms,
 
     // We then partially drain the local queue and the global stack.
     // (Do we really need this?)
+    // 再次处理本地队列和全局标记栈
     drain_local_queue(true);
     drain_global_stack(true);
 
@@ -4371,6 +4390,7 @@ void CMTask::do_marking_step(double time_target_ms,
       // We are going to try to claim a new region. We should have
       // given up on the previous one.
       // Separated the asserts so that we know which one fires.
+      // 标记本分区已经被处理
       assert(_curr_region  == NULL, "invariant");
       assert(_finger       == NULL, "invariant");
       assert(_region_limit == NULL, "invariant");
@@ -4403,6 +4423,8 @@ void CMTask::do_marking_step(double time_target_ms,
       assert(_cm->out_of_regions(),
              "at this point we should be out of regions");
     }
+    // 这个循环会继续, 只要分区不为null, 并且没有被终止, 这就是前面调用giveup_current_region和regular_clock_call的原因
+    // 就是为了终止循环
   } while ( _curr_region != NULL && !has_aborted());
 
   if (!has_aborted()) {
@@ -4417,15 +4439,18 @@ void CMTask::do_marking_step(double time_target_ms,
 
     // Try to reduce the number of available SATB buffers so that
     // remark has less work to do.
+    // 再处理一次satb缓存, 那么再标记的时候工作量就减少了
     drain_satb_buffers();
   }
 
   // Since we've done everything else, we can now totally drain the
   // local queue and global stack.
+  // 这个时候需要把本地队列和全局标记栈全部处理掉
   drain_local_queue(false);
   drain_global_stack(false);
 
   // Attempt at work stealing from other task's queues.
+  // 尝试从其他的任务的队列中窃取任务, 这是为了更好的性能
   if (do_stealing && !has_aborted()) {
     // We have not aborted. This means that we have finished all that
     // we could. Let's try to do some stealing...

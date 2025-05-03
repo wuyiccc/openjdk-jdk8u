@@ -293,6 +293,7 @@ inline bool CMTask::is_below_finger(oop obj, HeapWord* global_finger) const {
 }
 
 inline void CMTask::make_reference_grey(oop obj, HeapRegion* hr) {
+// 对对象标记和计数
   if (_cm->par_mark_and_count(obj, hr, _marked_bytes_array, _card_bm)) {
 
     if (_cm->verbose_high()) {
@@ -318,6 +319,7 @@ inline void CMTask::make_reference_grey(oop obj, HeapRegion* hr) {
     // be pushed on the stack. So, some duplicate work, but no
     // correctness problems.
     if (is_below_finger(obj, global_finger)) {
+    // 对象是一个原始(基本数据类型)数组, 无需继续追踪, 直接记录对象的长度
       if (obj->is_typeArray()) {
         // Immediately process arrays of primitive types, rather
         // than pushing on the mark stack.  This keeps us from
@@ -329,6 +331,7 @@ inline void CMTask::make_reference_grey(oop obj, HeapRegion* hr) {
         // by only doing a bookkeeping update and avoiding the
         // actual scan of the object - a typeArray contains no
         // references, and the metadata is built-in.
+        // false代表是基本对象, 没有field需要处理
         process_grey_object<false>(obj);
       } else {
         if (_cm->verbose_high()) {
@@ -338,6 +341,9 @@ inline void CMTask::make_reference_grey(oop obj, HeapRegion* hr) {
                                  _worker_id, p2i(_finger),
                                  p2i(global_finger), p2i(obj));
         }
+        // 把对象入栈, 后续对栈中的对象进行遍历
+        // 这里如果线程自己的栈满了会放入全局栈中
+        // 参考 JVM G1源码分析与调优 6.4.3小节末尾
         push(obj);
       }
     }

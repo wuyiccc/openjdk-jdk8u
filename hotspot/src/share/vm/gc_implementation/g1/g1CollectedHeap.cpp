@@ -1392,6 +1392,7 @@ bool G1CollectedHeap::do_collection(bool explicit_gc,
       }
 
       assert(num_free_regions() == 0, "we should not have added any free regions");
+      // 重建region 设置为old
       rebuild_region_sets(false /* free_list_only */);
 
       // Enqueue any discovered reference objects that have
@@ -1424,6 +1425,12 @@ bool G1CollectedHeap::do_collection(bool explicit_gc,
       check_gc_time_stamps();
 
       // Resize the heap if necessary.
+      // 前面fcg完成之后, 仅仅是heaprion内部对垃圾对象进行了清理
+      // 在fgc的heapregion内部的标记压缩处理完成之后, 这里尝试调整整个堆空间的大小
+      // 1. 根据MinHeapFreeRatio+MaxHeapFreeRatio 适当压缩/扩展堆空间
+      // 2. 遍历堆, 重构rset
+      // 3. 清除dirty card 队列, 将所有的分区修改为old分区
+      // 4. 调整ygc大小, 重建eden区域 用于下一次回收
       resize_if_necessary_after_full_collection(explicit_gc ? 0 : word_size);
 
       if (_hr_printer.is_active()) {

@@ -557,6 +557,7 @@ void DiscoveredListIterator::make_active() {
   // ReferenceProcessor::pending_list_uses_discovered_field() ?
   if (UseG1GC) {
     HeapWord* next_addr = java_lang_ref_Reference::next_addr(_ref);
+    // 在卡表中标记对象的状态, 并把对象复制到新的分区
     if (UseCompressedOops) {
       oopDesc::bs()->write_ref_field_pre((narrowOop*)next_addr, NULL);
     } else {
@@ -747,6 +748,7 @@ ReferenceProcessor::process_phase3(DiscoveredList&    refs_list,
     iter.next();
   }
   // Remember to update the next pointer of the last ref.
+  // 把待回收的对象复制到新的分区中
   iter.update_discovered();
   // Close the reachable set
   complete_gc->do_void();
@@ -968,7 +970,7 @@ ReferenceProcessor::process_discovered_reflist(
   // for processing so don't depend of _num_q < _max_num_q as part
   // of the test.
   bool must_balance = _discovery_is_mt;
-
+  // 平衡引用队列: mt_processing为true的时候 并行执行
   if ((mt_processing && ParallelRefProcBalancingEnabled) ||
       must_balance) {
     balance_queues(refs_lists);
@@ -987,7 +989,7 @@ ReferenceProcessor::process_discovered_reflist(
   //   such referents.
   // 第一阶段: 因为软引用的policy不为null, 所以遍历保存软引用的DiscoveredList列表
   // 将被引用对象不可达的引用对象Reference从列表中移除.
-  // 另外, 有些对象虽然不可达, 但是根据policy也可能会保留, 这样referent及引用的对象都会被标记为活跃, 这样不会被回收
+  // 另外, 有些对象虽然不可达, 但是根据policy也可能会保留, 这样referent及引用的对象都会被标记为活跃, 这样不会被回收(从discovery list 中移除)
   if (policy != NULL) {
     if (mt_processing) {
       RefProcPhase1Task phase1(*this, refs_lists, policy, true /*marks_oops_alive*/);
@@ -1006,6 +1008,7 @@ ReferenceProcessor::process_discovered_reflist(
   // Phase 2:
   // . Traverse the list and remove any refs whose referents are alive.
   // 第二阶段: 遍历所有的DiscoveredList列表, 将可达的referent对应的referent对象从Discovered列表中移除
+  // 主要是有些情况下引用对象优先于强引用对象执行, 这个时候可能产生误标记
   if (mt_processing) {
     RefProcPhase2Task phase2(*this, refs_lists, !discovery_is_atomic() /*marks_oops_alive*/);
     task_executor->execute(phase2);
@@ -1203,7 +1206,7 @@ void ReferenceProcessor::verify_referent(oop obj) {
 bool ReferenceProcessor::discover_reference(oop obj, ReferenceType rt) {
   // Make sure we are discovering refs (rather than processing discovered refs).
   // _discovering_refs在执行gc的时候设置为true, 表示只查找引用类型而不处理
-  // 当执行完gc的时候设置为false, 表示要处理引用类型
+  // 当执行完gc/cm的时候设置为false, 表示要处理引用类型
   // RegisterReferences表示hotspot vm 是否要主持引用类型, 默认值为true
   if (!_discovering_refs || !RegisterReferences) {
     return false;
@@ -1227,6 +1230,7 @@ bool ReferenceProcessor::discover_reference(oop obj, ReferenceType rt) {
 
   // We only discover references whose referents are not (yet)
   // known to be strongly reachable.
+  // 引用里面对象如果有强引用则无需处理
   if (is_alive_non_header() != NULL) {
     verify_referent(obj);
     if (is_alive_non_header()->do_object_b(java_lang_ref_Reference::referent(obj))) {

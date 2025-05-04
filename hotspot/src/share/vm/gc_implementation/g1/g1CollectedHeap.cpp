@@ -5365,6 +5365,7 @@ public:
 bool G1STWIsAliveClosure::do_object_b(oop p) {
   // An object is reachable if it is outside the collection set,
   // or is inside and copied.
+  // 判断对象是否有强引用的方式就是 对象不在cset中, 或者对象没有被复制到新的分区
   return !_g1->obj_in_cs(p) || p->is_forwarded();
 }
 

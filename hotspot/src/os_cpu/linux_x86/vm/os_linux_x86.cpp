@@ -210,7 +210,7 @@ frame os::current_frame() {
 enum {
   trap_page_fault = 0xE
 };
-
+// 编译线程进入安全点
 extern "C" JNIEXPORT int
 JVM_handle_linux_signal(int sig,
                         siginfo_t* info,

@@ -316,7 +316,7 @@ void G1MarkSweep::mark_sweep_phase4() {
 
   GCTraceTime tm("phase 4", G1Log::fine() && Verbose, true, gc_timer(), gc_tracer()->gc_id());
   GenMarkSweep::trace("4");
-
+  // 进行压缩处理
   G1SpaceCompactClosure blk;
   g1h->heap_region_iterate(&blk);
 

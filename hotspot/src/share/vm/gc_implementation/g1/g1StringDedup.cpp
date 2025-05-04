@@ -49,8 +49,10 @@ void G1StringDedup::stop() {
   G1StringDedupThread::stop();
 }
 
+// 情况2: 发生在fgc的标记阶段
 bool G1StringDedup::is_candidate_from_mark(oop obj) {
   if (java_lang_String::is_instance(obj)) {
+  // 1. 对象是字符串对象, 且位于新生代 + 2. 对象年龄小于StringDeduplicationAgeThreshold 3
     bool from_young = G1CollectedHeap::heap()->heap_region_containing_raw(obj)->is_young();
     if (from_young && obj->age() < StringDeduplicationAgeThreshold) {
       // Candidate found. String is being evacuated from young to old but has not
@@ -70,14 +72,16 @@ void G1StringDedup::enqueue_from_mark(oop java_string) {
     G1StringDedupQueue::push(0 /* worker_id */, java_string);
   }
 }
-
+// 1. 情况一: 发生在ygc的对转复制阶段
 bool G1StringDedup::is_candidate_from_evacuation(bool from_young, bool to_young, oop obj) {
   if (from_young && java_lang_String::is_instance(obj)) {
+    // 1. 对象复制到survivor区域, 且年龄 == StringDeduplicationAgeThreshold
     if (to_young && obj->age() == StringDeduplicationAgeThreshold) {
       // Candidate found. String is being evacuated from young to young and just
       // reached the deduplication age threshold.
       return true;
     }
+    // 2. 对象复制到老年代区域, 且年龄 < StringDeduplicationAgeThreshold
     if (!to_young && obj->age() < StringDeduplicationAgeThreshold) {
       // Candidate found. String is being evacuated from young to old but has not
       // reached the deduplication age threshold, i.e. has not previously been a

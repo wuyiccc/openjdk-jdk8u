@@ -357,6 +357,7 @@ void G1PrepareCompactClosure::prepare_for_compaction_work(CompactPoint* cp,
   hr->prepare_for_compaction(cp);
   // Also clear the part of the card table that will be unused after
   // compaction.
+  // 对象的新地址是compaction_top的位置
   _mrbs->clear(MemRegion(hr->compaction_top(), end));
 }
 
@@ -366,7 +367,7 @@ void G1PrepareCompactClosure::update_sets() {
   HeapRegionSetCount empty_set;
   _g1h->remove_from_old_sets(empty_set, _humongous_regions_removed);
 }
-
+// 计算对象的新地址
 bool G1PrepareCompactClosure::doHeapRegion(HeapRegion* hr) {
   if (hr->isHumongous()) {
     if (hr->startsHumongous()) {

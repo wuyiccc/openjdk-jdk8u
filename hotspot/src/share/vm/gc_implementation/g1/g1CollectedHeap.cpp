@@ -4436,6 +4436,7 @@ void G1CollectedHeap::remove_self_forwarding_pointers() {
 
   double remove_self_forwards_start = os::elapsedTime();
 
+  // 并行执行清除指针任务
   G1ParRemoveSelfForwardPtrsTask rsfp_task(this);
 
   if (G1CollectedHeap::use_parallel_gc_threads()) {
@@ -4449,6 +4450,7 @@ void G1CollectedHeap::remove_self_forwarding_pointers() {
   assert(check_cset_heap_region_claim_values(HeapRegion::ParEvacFailureClaimValue), "sanity");
 
   // Reset the claim values in the regions in the collection set.
+  // cset中所有的分区重置状态
   reset_cset_heap_region_claim_values();
 
   assert(check_cset_heap_region_claim_values(HeapRegion::InitialClaimValue), "sanity");
@@ -5944,6 +5946,7 @@ void G1CollectedHeap::evacuate_collection_set(EvacuationInfo& evacuation_info) {
   finalize_for_evac_failure();
 
   if (evacuation_failed()) {
+    // 处理转移失败的对象, 移除指向自己的指针
     remove_self_forwarding_pointers();
 
     // Reset the G1EvacuationFailureALot counters and flags

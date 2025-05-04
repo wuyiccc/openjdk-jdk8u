@@ -49,6 +49,7 @@ public:
 
   virtual void do_oop(narrowOop* p) { do_oop_work(p); }
   virtual void do_oop(      oop* p) { do_oop_work(p); }
+  // 这里对卡表设置为deferred, 设置为deferred的目的是为了重构rset
   template <class T> void do_oop_work(T* p) {
     assert(_from->is_in_reserved(p), "paranoia");
     if (!_from->is_in_reserved(oopDesc::load_decode_heap_oop(p)) &&
@@ -119,7 +120,7 @@ public:
       // there was a gap before obj_addr
       _last_gap_threshold = _hr->cross_threshold(_end_of_last_gap, obj_addr);
     }
-
+    // 恢复对象头信息
     if (obj->is_forwarded() && obj->forwardee() == obj) {
       // The object failed to move.
 
@@ -157,15 +158,18 @@ public:
       // The problem is that, if evacuation fails, we might have
       // remembered set entries missing given that we skipped cards on
       // the collection set. So, we'll recreate such entries now.
+      // 设置卡表信息, 把卡表设置为deferred
       obj->oop_iterate(_update_rset_cl);
     } else {
 
       // The object has been either evacuated or is dead. Fill it with a
       // dummy object.
+      // 对象已经成功转移, 或者已经无效了, 所以设置dummy对象进行填充
       MemRegion mr(obj_addr, obj_size);
       CollectedHeap::fill_with_object(mr);
 
       // must nuke all dead objects which we skipped when iterating over the region
+      // 把这些不活跃对象的标记位清除, 在回收的时候可以回收这些对象
       _cm->clearRangePrevBitmap(MemRegion(_end_of_last_gap, obj_end));
     }
     _end_of_last_gap = obj_end;
@@ -197,6 +201,7 @@ public:
 
     if (hr->claimHeapRegion(HeapRegion::ParEvacFailureClaimValue)) {
       if (hr->evacuation_failed()) {
+      // 这里closure执行具体任务
         RemoveSelfForwardPtrObjClosure rspc(_g1h, _cm, hr, &_update_rset_cl,
                                             during_initial_mark,
                                             during_conc_mark,
@@ -217,6 +222,7 @@ public:
         hr->rem_set()->reset_for_par_iteration();
         hr->reset_bot();
         _update_rset_cl.set_region(hr);
+        // 对分区处理, 调用Closure
         hr->object_iterate(&rspc);
 
         hr->rem_set()->clean_strong_code_roots(hr);
@@ -240,6 +246,7 @@ public:
     _g1h(g1h) { }
 
   void work(uint worker_id) {
+  // 通过closure来执行
     RemoveSelfForwardPtrHRClosure rsfp_cl(_g1h, worker_id);
 
     HeapRegion* hr = _g1h->start_cset_region_for_worker(worker_id);

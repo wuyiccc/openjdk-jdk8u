@@ -66,10 +66,12 @@ public:
 class SuspendibleThreadSetJoiner : public StackObj {
 public:
   SuspendibleThreadSetJoiner() {
+  // 在创建的时候join
     SuspendibleThreadSet::join();
   }
 
   ~SuspendibleThreadSetJoiner() {
+  // 在析构的时候leave
     SuspendibleThreadSet::leave();
   }
 

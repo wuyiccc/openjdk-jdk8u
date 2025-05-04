@@ -60,8 +60,10 @@ void SuspendibleThreadSet::yield() {
           guarantee((now - _suspend_all_start) * 1000.0 < (double)ConcGCYieldTimeout, "Long delay");
         }
       }
+      // 告诉VMThread可以检查是否能够开始工作了
       ml.notify_all();
       while (_suspend_all) {
+      // 本线程暂时停止, 直到VMThread通知可以继续工作了
         ml.wait(Mutex::_no_safepoint_check_flag);
       }
       assert(_nthreads_stopped > 0, "Invalid");

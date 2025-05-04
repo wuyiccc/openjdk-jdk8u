@@ -199,7 +199,7 @@ class ThreadStateTransition : public StackObj {
     assert(thread->thread_state() == _thread_in_Java, "coming from wrong thread state");
     thread->set_thread_state(to);
   }
-
+  // 正在执行本地代码的线程从本地代码执行切换到java执行的时候需要判断一下标志位
   static inline void transition_from_native(JavaThread *thread, JavaThreadState to) {
     assert((to & 1) == 0, "odd numbers are transitions states");
     assert(thread->thread_state() == _thread_in_native, "coming from wrong thread state");
@@ -208,6 +208,7 @@ class ThreadStateTransition : public StackObj {
     thread->set_thread_state(_thread_in_native_trans);
 
     // Make sure new state is seen by GC thread
+    // 使用屏障, 确保gc能够读到最新的状态
     if (os::is_MP()) {
       if (UseMembar) {
         // Force a fence between the write above and read below

@@ -1387,6 +1387,7 @@ bool G1CollectedHeap::do_collection(bool explicit_gc,
       // Do collection work
       {
         HandleMark hm;  // Discard invalid handles created during gc
+        // 采用标记清除算法开始fgc
         G1MarkSweep::invoke_at_safepoint(ref_processor_stw(), do_clear_all_soft_refs);
       }
 

@@ -74,6 +74,7 @@ template <class T> inline void MarkSweep::follow_root(T* p) {
       obj->follow_contents();
     }
   }
+  // 对栈的对象一个个进行遍历处理(标记每一个字段)
   follow_stack();
 }
 // 标记对象并压入栈中

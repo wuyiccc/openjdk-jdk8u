@@ -74,6 +74,7 @@ void MarkSweep::follow_stack() {
       obj->follow_contents();
     }
     // Process ObjArrays one at a time to avoid marking stack bloat.
+    // 在处理对象数组的时候, 需要一个个元素的处理, 如果直接处理整个数组对象可能导致标记溢出
     if (!_objarray_stack.is_empty()) {
       ObjArrayTask task = _objarray_stack.pop();
       ObjArrayKlass* k = (ObjArrayKlass*)task.obj()->klass();

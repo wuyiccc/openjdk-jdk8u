@@ -88,16 +88,16 @@ void G1MarkSweep::invoke_at_safepoint(ReferenceProcessor* rp,
   // We should save the marks of the currently locked biased monitors.
   // The marking doesn't preserve the marks of biased objects.
   BiasedLocking::preserve_marks();
-
+  // 1. 标记活跃对象
   mark_sweep_phase1(marked_for_unloading, clear_all_softrefs);
-
+  // 2. 计算新对象地址
   mark_sweep_phase2();
 
   // Don't add any more derived pointers during phase3
   COMPILER2_PRESENT(DerivedPointerTable::set_active(false));
-
+  // 3. 更新引用对象的地址
   mark_sweep_phase3();
-
+  // 4. 移动对象完成压缩
   mark_sweep_phase4();
 
   GenMarkSweep::restore_marks();
@@ -134,10 +134,12 @@ void G1MarkSweep::mark_sweep_phase1(bool& marked_for_unloading,
 
   // Need cleared claim bits for the roots processing
   ClassLoaderDataGraph::clear_claimed_marks();
-
+  // 标记处理和前面的ygc提到的标记处理类似, 不同之处在于用到的closure以及要额外处理代码对象, 另外标记处理是串行执行的
   MarkingCodeBlobClosure follow_code_closure(&GenMarkSweep::follow_root_closure, !CodeBlobToOopClosure::FixRelocations);
   {
     G1RootProcessor root_processor(g1h);
+    // 针对所有的根处理, 通过FollowRootClosure触发标记,
+    // 从follow_root开始 主要是1. 标记根对象 2. 标记对象的每一个字段然后入栈(follow_contents中处理 MarkSweep::mark_and_push)
     if (ClassUnloading) {
       root_processor.process_strong_roots(&GenMarkSweep::follow_root_closure,
                                           &GenMarkSweep::follow_cld_closure,
@@ -151,6 +153,7 @@ void G1MarkSweep::mark_sweep_phase1(bool& marked_for_unloading,
   }
 
   // Process reference objects found during marking
+  // 对引用对象进行标记处理
   ReferenceProcessor* rp = GenMarkSweep::ref_processor();
   assert(rp == g1h->ref_processor_stw(), "Sanity");
 
@@ -170,6 +173,8 @@ void G1MarkSweep::mark_sweep_phase1(bool& marked_for_unloading,
 
   if (ClassUnloading) {
 
+     // 对于系统字典, 符号表标记, 编译代码, klass做卸载处理, 这里的卸载就是把无用的对象从这些全局对象中删去,
+     // 但是对象的内存并没有释放
      // Unload classes and purge the SystemDictionary.
      bool purged_class = SystemDictionary::do_unloading(&GenMarkSweep::is_alive);
 

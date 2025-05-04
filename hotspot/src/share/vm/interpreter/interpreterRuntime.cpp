@@ -1009,7 +1009,10 @@ IRT_ENTRY(MethodCounters*, InterpreterRuntime::build_method_counters(JavaThread*
   }
   return mcs;
 IRT_END
-
+// muatator解释执行线程进入安全点
+// 当通过模板解释器执行代码的时候, jvm提供了一个正常指令派发表DispatchTable, 还提供了一个异常指令派发表,
+// 需要进入安全点的时候, jvm会用异常指令派发表替换这个正常的指令派发表, 那么当前字节码指令执行完毕之后在执行下一条字节码指令的时候就会
+// 进入到异常指令派发表, 异常指令派发表中所有的tos(栈顶状态缓存)都会去执行下面的方法
 // 这里宏定义中会创建一个ThreadInVMfromJava对象， 在创建这个对象的时候会调用构造函数
 // 函数调用完成之后会自动调用析构函数.
 // 构造函数中会将线程状态变为_thread_in_vm, 析构函数中, 调用trans将线程状态从_thread_in_vm变为了_thread_in_java

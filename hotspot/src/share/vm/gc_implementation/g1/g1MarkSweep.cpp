@@ -253,8 +253,9 @@ void G1MarkSweep::mark_sweep_phase3() {
   GenMarkSweep::trace("3");
 
   // Need cleared claim bits for the roots processing
+  // 状态复位
   ClassLoaderDataGraph::clear_claimed_marks();
-
+  // 更新根对象的引用
   CodeBlobToOopClosure adjust_code_closure(&GenMarkSweep::adjust_pointer_closure, CodeBlobToOopClosure::FixRelocations);
   {
     G1RootProcessor root_processor(g1h);
@@ -268,15 +269,16 @@ void G1MarkSweep::mark_sweep_phase3() {
 
   // Now adjust pointers in remaining weak roots.  (All of which should
   // have been cleared if they pointed to non-surviving objects.)
+  // 处理引用, 不活跃的对象会被删除
   JNIHandles::weak_oops_do(&GenMarkSweep::adjust_pointer_closure);
   JFR_ONLY(Jfr::weak_oops_do(&GenMarkSweep::adjust_pointer_closure));
 
   if (G1StringDedup::is_enabled()) {
     G1StringDedup::oops_do(&GenMarkSweep::adjust_pointer_closure);
   }
-
+  // 在第一步的时候, 有些对象如果有特殊的对象头, 会被入栈保存起来, 这里会调整这些保存的对象头
   GenMarkSweep::adjust_marks();
-
+  // 对每一个分区都要处理, 处理的方式是针对每一个活跃对象遍历它的每一个字段, 更新字段的引用
   G1AdjustPointersClosure blk;
   g1h->heap_region_iterate(&blk);
 }

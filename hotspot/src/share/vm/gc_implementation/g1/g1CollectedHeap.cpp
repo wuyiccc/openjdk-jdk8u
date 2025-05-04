@@ -2164,7 +2164,7 @@ jint G1CollectedHeap::initialize() {
   // Do create of the monitoring and management support so that
   // values in the heap have been properly initialized.
   _g1mm = new G1MonitoringSupport(this);
-
+  // 字符串去重初始化
   G1StringDedup::initialize();
 
   return JNI_OK;

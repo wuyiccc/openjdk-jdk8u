@@ -234,6 +234,7 @@ G1StringDedupTable::~G1StringDedupTable() {
 void G1StringDedupTable::create() {
   assert(_table == NULL, "One string deduplication table allowed");
   _entry_cache = new G1StringDedupEntryCache((size_t)(_min_size * _max_cache_factor));
+  // G1StringDedupTable的长度范围在 _min_size ~ _max_size 之间
   _table = new G1StringDedupTable(_min_size);
 }
 

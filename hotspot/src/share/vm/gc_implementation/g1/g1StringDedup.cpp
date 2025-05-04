@@ -40,6 +40,7 @@ void G1StringDedup::initialize() {
     _enabled = true;
     G1StringDedupQueue::create();
     G1StringDedupTable::create();
+    // 字符串去重线程初始化
     G1StringDedupThread::create();
   }
 }

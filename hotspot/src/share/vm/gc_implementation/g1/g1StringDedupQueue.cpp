@@ -40,6 +40,7 @@ G1StringDedupQueue::G1StringDedupQueue() :
   _dropped(0) {
   _nqueues = MAX2(ParallelGCThreads, (size_t)1);
   _queues = NEW_C_HEAP_ARRAY(G1StringDedupWorkerQueue, _nqueues, mtGC);
+  // 去重队列数量
   for (size_t i = 0; i < _nqueues; i++) {
     new (_queues + i) G1StringDedupWorkerQueue(G1StringDedupWorkerQueue::default_segment_size(), _max_cache_size, _max_size);
   }

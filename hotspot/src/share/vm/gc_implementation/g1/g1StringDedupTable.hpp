@@ -39,6 +39,7 @@ class G1StringDedupEntry : public CHeapObj<mtGC> {
 private:
   G1StringDedupEntry* _next;
   unsigned int        _hash;
+  // 储存String对象的值
   typeArrayOop        _obj;
 
 public:

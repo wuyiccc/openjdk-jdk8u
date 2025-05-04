@@ -4181,7 +4181,7 @@ G1CollectedHeap::do_collection_pause_at_safepoint(double target_pause_time_ms) {
         _young_list->print();
         g1_policy()->print_collection_set(g1_policy()->inc_cset_head(), gclog_or_tty);
 #endif // YOUNG_LIST_VERBOSE
-
+        // 根据预测时间来选择收集的分区
         g1_policy()->finalize_cset(target_pause_time_ms, evacuation_info);
 
         // Make sure the remembered sets are up to date. This needs to be

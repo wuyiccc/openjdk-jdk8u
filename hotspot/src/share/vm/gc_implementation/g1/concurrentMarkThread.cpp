@@ -265,9 +265,9 @@ void ConcurrentMarkThread::run() {
       // not needed any more as the concurrent mark state has been
       // already reset).
       {
-        // 这里是通知下一次gc发生的时候, 应该启动混合yc, 即要回收老年代分区
         SuspendibleThreadSetJoiner sts;
         if (!cm()->has_aborted()) {
+        // 设置可以开始混合收集的标志
           g1_policy->record_concurrent_mark_cleanup_completed();
         }
       }

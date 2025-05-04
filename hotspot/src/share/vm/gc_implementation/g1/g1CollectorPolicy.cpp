@@ -1913,7 +1913,7 @@ double G1CollectorPolicy::reclaimable_bytes_perc(size_t reclaimable_bytes) {
   size_t capacity_bytes = _g1->capacity();
   return (double) reclaimable_bytes * 100.0 / (double) capacity_bytes;
 }
-
+// 判断是否可以进行混合收集
 bool G1CollectorPolicy::next_gc_should_be_mixed(const char* true_action_str,
                                                 const char* false_action_str) {
   CollectionSetChooser* cset_chooser = _collectionSetChooser;
@@ -1927,6 +1927,7 @@ bool G1CollectorPolicy::next_gc_should_be_mixed(const char* true_action_str,
   // Is the amount of uncollected reclaimable space above G1HeapWastePercent?
   size_t reclaimable_bytes = cset_chooser->remaining_reclaimable_bytes();
   double reclaimable_perc = reclaimable_bytes_perc(reclaimable_bytes);
+  // 参数 G1HeapWastePercent 的值为5, 即当CSet Chooser中可回收的空间占总空间的比例大于G1HeapWastePercent才会开始混合收集
   double threshold = (double) G1HeapWastePercent;
   if (reclaimable_perc <= threshold) {
     ergo_verbose4(ErgoMixedGCs,
@@ -1965,6 +1966,7 @@ uint G1CollectorPolicy::calc_min_old_cset_length() {
   // that the result is the same during all mixed GCs that follow a cycle.
 
   const size_t region_num = (size_t) _collectionSetChooser->length();
+  // G1MixedGCCountTarget 默认值为8, 表示老年代在cset中占比为 1/8, 如果没有达到这个值，就算超过了预测时间也还是继续增加收集区域
   const size_t gc_num = (size_t) MAX2(G1MixedGCCountTarget, (uintx) 1);
   size_t result = region_num / gc_num;
   // emulate ceiling
@@ -1982,9 +1984,11 @@ uint G1CollectorPolicy::calc_max_old_cset_length() {
 
   G1CollectedHeap* g1h = G1CollectedHeap::heap();
   const size_t region_num = g1h->num_regions();
+  // G1OldCSetRegionThresholdPercent 的默认值是10, 即最多收集10%的分区
   const size_t perc = (size_t) G1OldCSetRegionThresholdPercent;
   size_t result = region_num * perc / 100;
   // emulate ceiling
+  // 取上限, 表示最小收集一个老年代分区
   if (100 * result < region_num * perc) {
     result += 1;
   }
@@ -2026,7 +2030,7 @@ void G1CollectorPolicy::finalize_cset(double target_pause_time_ms, EvacuationInf
   // The young list is laid with the survivor regions from the previous
   // pause are appended to the RHS of the young list, i.e.
   //   [Newly Young Regions ++ Survivors from last pause].
-
+  // 所有的eden和survivor分区都需要收集
   uint survivor_region_length = young_list->survivor_length();
   uint eden_region_length = young_list->length() - survivor_region_length;
   init_cset_region_lengths(eden_region_length, survivor_region_length);
@@ -2067,10 +2071,11 @@ void G1CollectorPolicy::finalize_cset(double target_pause_time_ms, EvacuationInf
 
   // Set the start of the non-young choice time.
   double non_young_start_time_sec = young_end_time_sec;
-
+  // 这次的收集是混合回收.
   if (!gcs_are_young()) {
     CollectionSetChooser* cset_chooser = _collectionSetChooser;
     cset_chooser->verify();
+    // 获取老年代分区最小和最大处理数
     const uint min_old_cset_length = calc_min_old_cset_length();
     const uint max_old_cset_length = calc_max_old_cset_length();
 
@@ -2079,6 +2084,7 @@ void G1CollectorPolicy::finalize_cset(double target_pause_time_ms, EvacuationInf
 
     HeapRegion* hr = cset_chooser->peek();
     while (hr != NULL) {
+    // 老年代处理数达到最大值, 停止添加cset
       if (old_cset_region_length() >= max_old_cset_length) {
         // Added maximum number of old regions to the CSet.
         ergo_verbose2(ErgoCSetConstruction,
@@ -2096,6 +2102,7 @@ void G1CollectorPolicy::finalize_cset(double target_pause_time_ms, EvacuationInf
       size_t reclaimable_bytes = cset_chooser->remaining_reclaimable_bytes();
       double reclaimable_perc = reclaimable_bytes_perc(reclaimable_bytes);
       double threshold = (double) G1HeapWastePercent;
+      // 低于最小浪费空间G1HeapWastePercent可以停止添加cset
       if (reclaimable_perc <= threshold) {
         // We've added enough old regions that the amount of uncollected
         // reclaimable space is at or below the waste threshold. Stop
@@ -2118,6 +2125,7 @@ void G1CollectorPolicy::finalize_cset(double target_pause_time_ms, EvacuationInf
       if (check_time_remaining) {
         if (predicted_time_ms > time_remaining_ms) {
           // Too expensive for the current CSet.
+          // 支持动态调整分区设置, 且预测时间超过目标停止时间, 到达最小收集数则停止添加cset
 
           if (old_cset_region_length() >= min_old_cset_length) {
             // We have added the minimum number of old regions to the CSet,
@@ -2136,9 +2144,12 @@ void G1CollectorPolicy::finalize_cset(double target_pause_time_ms, EvacuationInf
 
           // We'll add it anyway given that we haven't reached the
           // minimum number of old regions.
+          // 支持动态调整的分区设置, 且预测时间超过目标停止时间, 但是老年代收集数还没有到达最小收集数量,
+          // 继续添加分区到cset, 同时记录有多少个分区超过这个目标时间
           expensive_region_num += 1;
         }
       } else {
+      // 不支持动态调整的分区设置, 只要到达最小收集数则停止添加cset, 所以不要指定固定新生代大小
         if (old_cset_region_length() >= min_old_cset_length) {
           // In the non-auto-tuning case, we'll finish adding regions
           // to the CSet if we reach the minimum.
@@ -2155,6 +2166,7 @@ void G1CollectorPolicy::finalize_cset(double target_pause_time_ms, EvacuationInf
       // We will add this region to the CSet.
       time_remaining_ms = MAX2(time_remaining_ms - predicted_time_ms, 0.0);
       predicted_pause_time_ms += predicted_time_ms;
+      // 把分区加入到cset
       cset_chooser->remove_and_move_to_next(hr);
       _g1->old_set_remove(hr);
       add_old_region_to_cset(hr);
@@ -2168,6 +2180,7 @@ void G1CollectorPolicy::finalize_cset(double target_pause_time_ms, EvacuationInf
     }
 
     if (expensive_region_num > 0) {
+    // 输出一些信息, 表示有多少个分区还没有达到最小值, 但是可能已经超过了预测时间
       // We print the information once here at the end, predicated on
       // whether we added any apparently expensive regions or not, to
       // avoid generating output per region.

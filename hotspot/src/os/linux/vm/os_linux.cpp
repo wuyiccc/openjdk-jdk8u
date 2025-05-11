@@ -1390,7 +1390,7 @@ double os::elapsedVTime() {
     return elapsedTime();
   }
 }
-
+// 对应java.lang.System#currentTimeMillis的native实现
 jlong os::javaTimeMillis() {
   timeval time;
   int status = gettimeofday(&time, NULL);

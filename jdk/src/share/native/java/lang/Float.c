@@ -52,6 +52,8 @@ Java_java_lang_Float_floatToRawIntBits(JNIEnv *env, jclass unused, jfloat v)
         int i;
         float f;
     } u;
+    // 使用union联合体的方式完成了float 32位浮点数到int的转换
+    // java.lang.Float#floatToRawIntBits
     u.f = (float)v;
     return (jint)u.i;
 }

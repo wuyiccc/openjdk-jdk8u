@@ -4201,8 +4201,13 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
     promoted_flags.set_flags(0);
     // 解析方法
     if (strcmp(name->as_C_string(), "Test") == 0) {
-      int x =10;
+        int x = 10;
     }
+
+    if (strcmp(name->as_C_string(), "Main")==0) {
+      int x = 10;
+    }
+
     Array<Method*>* methods = parse_methods(access_flags.is_interface(),
                                             &promoted_flags,
                                             &has_final_method,

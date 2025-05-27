@@ -89,7 +89,7 @@ inline intptr_t* sender_sp() {
 #define SET_STACK_LONG_FROM_ADDR(addr, offset)   (((VMJavaVal64*)&topOfStack[-(offset)])->l =  \
                                                  ((VMJavaVal64*)(addr))->l)
 // JavaLocals implementation
-
+// 定义了slot的大小, 对于64位的系统来说, 这里slot对应64位 8字节的存储空间
 #define LOCALS_SLOT(offset)    ((intptr_t*)&locals[-(offset)])
 #define LOCALS_ADDR(offset)    ((address)locals[-(offset)])
 #define LOCALS_INT(offset)     ((jint)(locals[-(offset)]))

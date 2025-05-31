@@ -465,7 +465,7 @@ JVM_LEAF(void, JVM_OnExit(void (*func)(void)))
   register_on_exit_function(func);
 JVM_END
 
-
+// native System.gc()实现, 可以通过DisableExplicitGC来禁用System.gc()
 JVM_ENTRY_NO_ENV(void, JVM_GC(void))
   JVMWrapper("JVM_GC");
   if (!DisableExplicitGC) {

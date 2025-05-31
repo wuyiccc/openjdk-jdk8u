@@ -58,7 +58,7 @@ Java_java_lang_Runtime_maxMemory(JNIEnv *env, jobject this)
 {
     return JVM_MaxMemory();
 }
-
+// 对应的gc()实现
 JNIEXPORT void JNICALL
 Java_java_lang_Runtime_gc(JNIEnv *env, jobject this)
 {

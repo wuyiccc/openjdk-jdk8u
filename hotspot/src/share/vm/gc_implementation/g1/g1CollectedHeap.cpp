@@ -2526,7 +2526,8 @@ void G1CollectedHeap::collect(GCCause::Cause cause) {
       full_gc_count_before = total_full_collections();
       old_marking_count_before = _old_marking_cycles_started;
     }
-
+    // 这里判断是否要进行fullgc, 当使用System.gc的时候, 这里根据ExplicitGCInvokesConcurrent的配置决定是否开启并发gc
+    // 默认不开启, 直接进行fgc
     if (should_do_concurrent_full_gc(cause)) {
       // Schedule an initial-mark evacuation pause that will start a
       // concurrent cycle. We're setting word_size to 0 which means that

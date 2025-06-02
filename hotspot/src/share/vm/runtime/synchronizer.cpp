@@ -324,11 +324,13 @@ void ObjectSynchronizer::reenter(Handle obj, intptr_t recursion, TRAPS) {
 void ObjectSynchronizer::jni_enter(Handle obj, TRAPS) { // possible entry from jni enter
   // the current locking is from JNI instead of Java code
   TEVENT (jni_enter) ;
+  // 尝试加偏向锁
   if (UseBiasedLocking) {
     BiasedLocking::revoke_and_rebias(obj, false, THREAD);
     assert(!obj->mark()->has_bias_pattern(), "biases should be revoked by now");
   }
   THREAD->set_current_pending_monitor_is_from_java(false);
+  // 锁膨胀成重量级锁
   ObjectSynchronizer::inflate(THREAD, obj(), inflate_cause_jni_enter)->enter(THREAD);
   THREAD->set_current_pending_monitor_is_from_java(true);
 }

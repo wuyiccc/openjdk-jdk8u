@@ -1987,6 +1987,7 @@ void PSParallelCompact::invoke(bool maximum_heap_compaction) {
   PSAdaptiveSizePolicy* policy = heap->size_policy();
   IsGCActiveMark mark;
 
+  // system.gc调用到这里的时候会先进行一次ygc, 然后进行fgc
   if (ScavengeBeforeFullGC) {
     PSScavenge::invoke_no_policy();
   }

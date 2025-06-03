@@ -640,7 +640,7 @@ static void range_check(MacroAssembler* masm, Register pc_reg, Register temp_reg
   __ jcc(Assembler::below, L_ok);
   __ bind(L_fail);
 }
-
+// 适配器的目的就是把解释器方法栈存放的参数 传递到 本地方法执行栈和寄存器中
 static void gen_i2c_adapter(MacroAssembler *masm,
                             int total_args_passed,
                             int comp_args_on_stack,

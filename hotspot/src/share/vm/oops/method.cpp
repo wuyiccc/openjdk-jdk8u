@@ -855,14 +855,17 @@ void Method::clear_code(bool acquire_lock /* = true */) {
   MutexLockerEx pl(acquire_lock ? Patching_lock : NULL, Mutex::_no_safepoint_check_flag);
   // this may be NULL if c2i adapters have not been made yet
   // Only should happen at allocate time.
+  // 清除 _from_compiled_entry 使其再次指向c2i适配器
   if (_adapter == NULL) {
     _from_compiled_entry    = NULL;
   } else {
     _from_compiled_entry    = _adapter->get_c2i_entry();
   }
   OrderAccess::storestore();
+  // 将_from_interpreted_entr再次指向解释器入口
   _from_interpreted_entry = _i2i_entry;
   OrderAccess::storestore();
+  // 取消指向机器代码
   _code = NULL;
 }
 
@@ -890,7 +893,7 @@ void Method::unlink_method() {
   set_method_data(NULL);
   clear_method_counters();
 }
-
+// 方法链接
 // Called when the method_holder is getting linked. Setup entrypoints so the method
 // is ready to be called from interpreter, compiler, and vtables.
 void Method::link_method(methodHandle h_method, TRAPS) {
@@ -984,7 +987,7 @@ bool Method::check_code() const {
   nmethod *code = (nmethod *)OrderAccess::load_ptr_acquire(&_code);
   return code == NULL || (code->method() == NULL) || (code->method() == (Method*)this && !code->is_osr_method());
 }
-
+// 编译器/解释器入口的设置
 // Install compiled code.  Instantly it can execute.
 void Method::set_code(methodHandle mh, nmethod *code) {
   MutexLockerEx pl(Patching_lock, Mutex::_no_safepoint_check_flag);
@@ -996,6 +999,7 @@ void Method::set_code(methodHandle mh, nmethod *code) {
   // These writes must happen in this order, because the interpreter will
   // directly jump to from_interpreted_entry which jumps to an i2c adapter
   // which jumps to _from_compiled_entry.
+  // 设置编译好的机器代码
   mh->_code = code;             // Assign before allowing compiled code to exec
 
   int comp_level = code->comp_level();
@@ -1009,6 +1013,7 @@ void Method::set_code(methodHandle mh, nmethod *code) {
 #ifdef SHARK
   mh->_from_interpreted_entry = code->insts_begin();
 #else //!SHARK
+// 设置解释器入口点为编译后的机器代码
   mh->_from_compiled_entry = code->verified_entry_point();
   OrderAccess::storestore();
   // Instantly compiled code can execute.

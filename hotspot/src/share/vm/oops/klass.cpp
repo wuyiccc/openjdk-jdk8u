@@ -258,15 +258,15 @@ void Klass::initialize_supers(Klass* k, TRAPS) {
     set_super(k);
     return;
   }
-    if (strcmp(name()->as_C_string(), "Test$TestTwo") == 0) {
+    if (strcmp(name()->as_C_string(), "Main$Child") == 0) {
         int x = 10;
     }
-//    if (strcmp(name()->as_C_string(), "Test$A") == 0
-//        || strcmp(name()->as_C_string(), "Test$B") == 0
-//        || strcmp(name() -> as_C_string(), "Test$C") == 0
-//        || strcmp(name() -> as_C_string(), "Test$D") == 0){
-//        int x = 10;
-//    }
+    if (strcmp(name()->as_C_string(), "Main$Child") == 0
+        || strcmp(name()->as_C_string(), "Test$B") == 0
+        || strcmp(name() -> as_C_string(), "Test$C") == 0
+        || strcmp(name() -> as_C_string(), "Test$D") == 0){
+        int x = 10;
+    }
 
 
     // 如果父类为null, 说明当前类可能为Object, 或者基本数据类型数组, 例如int[], char[]等等

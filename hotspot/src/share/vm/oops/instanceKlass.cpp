@@ -1279,13 +1279,14 @@ Method* InstanceKlass::class_initializer() {
 }
 
 void InstanceKlass::call_class_initializer_impl(instanceKlassHandle this_oop, TRAPS) {
+// 如果启用了编译重放则跳过初始化
   if (ReplayCompiles &&
       (ReplaySuppressInitializers == 1 ||
        ReplaySuppressInitializers >= 2 && this_oop->class_loader() != NULL)) {
     // Hide the existence of the initializer for the purpose of replaying the compile
     return;
   }
-
+  // 获取初始化方法, 包装成一个methodHandle
   methodHandle h_method(THREAD, this_oop->class_initializer());
   assert(!this_oop->is_initialized(), "we cannot initialize twice");
   if (TraceClassInitialization) {
@@ -1294,6 +1295,7 @@ void InstanceKlass::call_class_initializer_impl(instanceKlassHandle this_oop, TR
     tty->print_cr("%s (" INTPTR_FORMAT ")", h_method() == NULL ? "(no method)" : "", (address)this_oop());
   }
   if (h_method() != NULL) {
+    // <clinit>无参数
     JavaCallArguments args; // No arguments
     JavaValue result(T_VOID);
     // 通过JavaCalls::call()函数完成了java方法的调用

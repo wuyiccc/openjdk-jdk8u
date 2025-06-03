@@ -172,7 +172,7 @@ class ClassLoaderData : public CHeapObj<mtClass> {
   friend class Method;
 
   static ClassLoaderData * _the_null_class_loader_data;
-
+  // java.lang.ClassLoader
   oop _class_loader;          // oop used to uniquely identify a class loader
                               // class loader or a canonical class path
   Dependencies _dependencies; // holds dependencies from this class loader
@@ -293,7 +293,7 @@ class ClassLoaderData : public CHeapObj<mtClass> {
 
   // Used when tracing from klasses.
   void oops_do(OopClosure* f, KlassClosure* klass_closure, bool must_claim);
-
+  // 找到类加载器加载的所有class
   void classes_do(KlassClosure* klass_closure);
 
   JNIMethodBlock* jmethod_ids() const              { return _jmethod_ids; }

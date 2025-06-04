@@ -583,35 +583,41 @@ static markOop ReadStableMark (oop obj) {
 //   There are simple ways to "diffuse" the middle address bits over the
 //   generated hashCode values:
 //
-
+// 获取对象的hash值
 static inline intptr_t get_next_hash(Thread * Self, oop obj) {
   intptr_t value = 0 ;
   if (hashCode == 0) {
      // This form uses an unguarded global Park-Miller RNG,
      // so it's possible for two threads to race and generate the same RNG.
      // On MP system we'll have lots of RW access to a global, so the
-     // mechanism induces lots of coherency traffic.
+     // mechanism induces lots of coherency traffic.a
+     // park-miller随机数生成器
      value = os::random() ;
   } else
   if (hashCode == 1) {
      // This variation has the property of being stable (idempotent)
      // between STW operations.  This can be useful in some of the 1-0
      // synchronization schemes.
+     // 每次stw的时候生成stwRandom做随机
      intptr_t addrBits = cast_from_oop<intptr_t>(obj) >> 3 ;
      value = addrBits ^ (addrBits >> 5) ^ GVars.stwRandom ;
   } else
   if (hashCode == 2) {
+  // 所有对象均为1, 测试用的
      value = 1 ;            // for sensitivity testing
   } else
   if (hashCode == 3) {
+  // 每创建一个对象, hash值加1
      value = ++GVars.hcSequence ;
   } else
   if (hashCode == 4) {
+  // 将对象内存地址当做hash值
      value = cast_from_oop<intptr_t>(obj) ;
   } else {
      // Marsaglia's xor-shift scheme with thread-specific state
      // This is probably the best overall implementation -- we'll
      // likely make this the default in future releases.
+     // marsaglia xor-shift 随机数算法, 生成hashcode
      unsigned t = Self->_hashStateX ;
      t ^= (t << 11) ;
      Self->_hashStateX = Self->_hashStateY ;

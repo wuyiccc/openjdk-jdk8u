@@ -103,9 +103,13 @@
 class VM_Operation: public CHeapObj<mtInternal> {
  public:
   enum Mode {
+    // 虚拟机线程需要等待其他线程和发起操作的线程都进入安全点才能执行操作
     _safepoint,       // blocking,        safepoint, vm_op C-heap allocated
+    // 虚拟机线程无需等待其他线程和发起操作的线程进入安全点就能执行该操作
     _no_safepoint,    // blocking,     no safepoint, vm_op C-Heap allocated
+    // 线程发起操作后可继续执行, 虚拟机线程执行操作无需等待发起操作的线程和其他线程进入安全点
     _concurrent,      // non-blocking, no safepoint, vm_op C-Heap allocated
+    // 线程发起操作后可继续执行, 但是当虚拟机线程执行该操作时发起操作的线程和其他线程都会进入安全点
     _async_safepoint  // non-blocking,    safepoint, vm_op C-Heap allocated
   };
 

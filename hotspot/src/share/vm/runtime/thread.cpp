@@ -3368,6 +3368,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
 
   // Parse arguments
   // Note: this internally calls os::init_container_support()
+  // 这里从jdk10 backport到jdk8 提供了对docker容器的支持
   jint parse_result = Arguments::parse(args);
   if (parse_result != JNI_OK) return parse_result;
 
@@ -3462,6 +3463,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
   // 初始化主线程栈
   // Enable guard page *after* os::create_main_thread(), otherwise it would
   // crash Linux VM, see notes in os_linux.cpp.
+  // 栈保护页创建
   main_thread->create_stack_guard_pages();
 
   // Initialize Java-Level synchronization subsystem

@@ -3093,11 +3093,12 @@ void jio_print(const char* s) {
 // the lock is held while the operation occurs (this is not the case for suspend, for
 // instance), and are very unlikely.  Because IsAlive needs to be fast and its
 // implementation is local to this file, we always lock Threads_lock for that one.
-
+// JavaThread真正执行的时候会调用这里的函数
 static void thread_entry(JavaThread* thread, TRAPS) {
   HandleMark hm(THREAD);
   Handle obj(THREAD, thread->threadObj());
   JavaValue result(T_VOID);
+  // 在这里调用java层面的Thread类的run方法
   JavaCalls::call_virtual(&result,
                           obj,
                           KlassHandle(THREAD, SystemDictionary::Thread_klass()),
@@ -3106,7 +3107,7 @@ static void thread_entry(JavaThread* thread, TRAPS) {
                           THREAD);
 }
 
-
+// java代码的Thread.start()调用这里的函数
 JVM_ENTRY(void, JVM_StartThread(JNIEnv* env, jobject jthread))
   JVMWrapper("JVM_StartThread");
   JavaThread *native_thread = NULL;
@@ -3142,6 +3143,7 @@ JVM_ENTRY(void, JVM_StartThread(JNIEnv* env, jobject jthread))
       // size_t (an unsigned type), so avoid passing negative values which would
       // result in really large stacks.
       size_t sz = size > 0 ? (size_t) size : 0;
+      // 虚拟机创建JavaThread, 该类内部会创建操作系统线程, 然后关联java线程
       native_thread = new JavaThread(&thread_entry, sz);
 
       // At this point it may be possible that no osthread was created for the
@@ -3174,7 +3176,7 @@ JVM_ENTRY(void, JVM_StartThread(JNIEnv* env, jobject jthread))
     THROW_MSG(vmSymbols::java_lang_OutOfMemoryError(),
               "unable to create new native thread");
   }
-
+  // 修改Thread的线程状态为RUNNABLE, 然后放行osThread
   Thread::start(native_thread);
 
 JVM_END

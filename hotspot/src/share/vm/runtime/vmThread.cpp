@@ -261,6 +261,7 @@ void VMThread::run() {
   // Notify_lock wait checks on active_handles() to rewait in
   // case of spurious wakeup, it should wait on the last
   // value set prior to the notify
+  // 执行完这段代码之后, Threads._create_vm()会继续执行, 之前卡在vmthread->active_handles() == NULL这里
   this->set_active_handles(JNIHandleBlock::allocate_block());
 
   {

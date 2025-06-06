@@ -3185,9 +3185,11 @@ JVM_END
 // before the quasi-asynchronous exception is delivered.  This is a little obtrusive,
 // but is thought to be reliable and simple. In the case, where the receiver is the
 // same thread as the sender, no safepoint is needed.
+// java的thread停止的时候会调用这个方法, 在java层面, jdk会创建一个ThreadDeath(Error)对象
+// 然后触发下面这个方法
 JVM_ENTRY(void, JVM_StopThread(JNIEnv* env, jobject jthread, jobject throwable))
   JVMWrapper("JVM_StopThread");
-
+  // 获取jdk传入的ThreadDeath对象, 确保不为空
   oop java_throwable = JNIHandles::resolve(throwable);
   if (java_throwable == NULL) {
     THROW(vmSymbols::java_lang_NullPointerException());
@@ -3198,13 +3200,16 @@ JVM_ENTRY(void, JVM_StopThread(JNIEnv* env, jobject jthread, jobject throwable))
                         "JVM_StopThread thread JavaThread " INTPTR_FORMAT " as oop " INTPTR_FORMAT " [exception " INTPTR_FORMAT "]",
                         p2i(receiver), p2i((address)java_thread), p2i(throwable));
   // First check if thread is alive
+  // 如果要停止的线程还活着
   if (receiver != NULL) {
     // Check if exception is getting thrown at self (use oop equality, since the
     // target object might exit)
     if (java_thread == thread->threadObj()) {
+    // 如果停止当前线程, 抛出ThreadDeath(Error)停止
       THROW_OOP(java_throwable);
     } else {
       // Enques a VM_Operation to stop all threads and then deliver the exception...
+      // 否则停止其他线程, 向虚拟机线程投递VM_ThreadStop
       Thread::send_async_exception(java_thread, JNIHandles::resolve(throwable));
     }
   }
@@ -3216,6 +3221,7 @@ JVM_ENTRY(void, JVM_StopThread(JNIEnv* env, jobject jthread, jobject throwable))
     // but that is overkill as it doesn't matter. We must set the
     // stillborn flag for the first case, and if the thread has already
     // exited setting this flag has no affect
+    // 否则复活他(停止没有启动的线程是java.lang.Thread允许的行为)
     java_lang_Thread::set_stillborn(java_thread);
   }
 JVM_END

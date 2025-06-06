@@ -94,6 +94,7 @@ void VM_ThreadStop::doit() {
   // thrown at a thread.
   if (target != NULL) {
     // the thread has run and is not already in the process of exiting
+    // 发送线程停止命令
     target->send_thread_stop(throwable());
   }
 }

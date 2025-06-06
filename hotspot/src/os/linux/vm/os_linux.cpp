@@ -4120,10 +4120,11 @@ int os::sleep(Thread* thread, jlong millis, bool interruptible) {
     jlong prevtime = javaTimeNanos();
 
     for (;;) {
+    // 检查是否中断
       if (os::is_interrupted(thread, true)) {
         return OS_INTRPT;
       }
-
+    // 更精确的睡眠时间
       jlong newtime = javaTimeNanos();
 
       if (newtime - prevtime < 0) {
@@ -4149,7 +4150,7 @@ int os::sleep(Thread* thread, jlong millis, bool interruptible) {
         jt->set_suspend_equivalent();
         // cleared by handle_special_suspend_equivalent_condition() or
         // java_suspend_self() via check_and_wait_while_suspended()
-
+        // 进行睡眠
         slp->park(millis);
 
         // were we externally suspended while we were waiting?

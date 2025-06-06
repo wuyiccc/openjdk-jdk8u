@@ -3328,16 +3328,18 @@ static void post_thread_sleep_event(EventThreadSleep* event, jlong millis) {
 JVM_ENTRY(void, JVM_Sleep(JNIEnv* env, jclass threadClass, jlong millis))
   JVMWrapper("JVM_Sleep");
 
+  // 如果睡眠时间少于0, 则抛出参数错误异常
   if (millis < 0) {
     THROW_MSG(vmSymbols::java_lang_IllegalArgumentException(), "timeout value is negative");
   }
-
+  // 如果待睡眠的线程已处于中断状态
   if (Thread::is_interrupted (THREAD, true) && !HAS_PENDING_EXCEPTION) {
     THROW_MSG(vmSymbols::java_lang_InterruptedException(), "sleep interrupted");
   }
 
   // Save current thread state and restore it at the end of this block.
   // And set new thread state to SLEEPING.
+  // 保存当前线程的状态
   JavaThreadSleepState jtss(thread);
 
 #ifndef USDT2
@@ -3348,7 +3350,7 @@ JVM_ENTRY(void, JVM_Sleep(JNIEnv* env, jclass threadClass, jlong millis))
 #endif /* USDT2 */
 
   EventThreadSleep event;
-
+  // 如果睡眠时间为0, 则Thread.sleep()退化为Thread.yield()
   if (millis == 0) {
     // When ConvertSleepToYield is on, this matches the classic VM implementation of
     // JVM_Sleep. Critical for similar threading behaviour (Win32)
@@ -3383,6 +3385,7 @@ JVM_ENTRY(void, JVM_Sleep(JNIEnv* env, jclass threadClass, jlong millis))
         THROW_MSG(vmSymbols::java_lang_InterruptedException(), "sleep interrupted");
       }
     }
+    // 恢复之前保存的线程状态
     thread->osthread()->set_state(old_state);
   }
   if (event.should_commit()) {

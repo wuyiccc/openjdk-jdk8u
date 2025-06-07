@@ -79,7 +79,7 @@ class frame VALUE_OBJ_CLASS_SPEC {
     is_deoptimized,
     unknown
   };
-
+  // 退优化状态(未退优化, 退优化, 未知)
   deopt_state _deopt_state;
 
  public:
@@ -437,6 +437,7 @@ class frame VALUE_OBJ_CLASS_SPEC {
   int adjust_offset(Method* method, int index); // helper for above fn
  public:
   // Memory management
+  // 用来遍历栈帧上的对象引用, 并以他们为起始进行对象标记
   void oops_do(OopClosure* f, CLDClosure* cld_f, CodeBlobClosure* cf, RegisterMap* map) { oops_do_internal(f, cld_f, cf, map, true); }
   void nmethods_do(CodeBlobClosure* cf);
 

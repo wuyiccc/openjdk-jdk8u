@@ -726,6 +726,7 @@ bool Monitor::notify_all() {
 }
 
 int Monitor::IWait (Thread * Self, jlong timo) {
+// 线程wait必须要先抢到锁
   assert (ILocked(), "invariant") ;
 
   // Phases:
@@ -765,7 +766,7 @@ int Monitor::IWait (Thread * Self, jlong timo) {
   // new immortal/TSM "ListElement" class that referred to ParkEvents.
   // In that case we could have one ListElement on the WaitSet and another
   // on the EntryList, with both referring to the same pure Event.
-
+  // 将self线程加入等待集合
   Thread::muxAcquire (_WaitLock, "wait:WaitLock:Add") ;
   ESelf->ListNext = _WaitSet ;
   _WaitSet = ESelf ;
@@ -781,12 +782,13 @@ int Monitor::IWait (Thread * Self, jlong timo) {
   // IUnlock() call a thread should _never find itself on the EntryList
   // or cxq, but in the case of wait() it's possible.
   // See synchronizer.cpp objectMonitor::wait().
+  // 释放外部的锁
   IUnlock (true) ;
 
   // Wait for either notification or timeout
   // Beware that in some circumstances we might propagate
   // spurious wakeups back to the caller.
-
+  // 线程阻塞等待, 直到受到另一个线程的通知, 或者超时唤醒, 或者伪唤醒
   for (;;) {
     if (ESelf->Notified) break ;
     int err = ParkCommon (ESelf, timo) ;
@@ -800,6 +802,7 @@ int Monitor::IWait (Thread * Self, jlong timo) {
   // 3. Not resident on cxq, EntryList or WaitSet, but in the OnDeck position.
 
   OrderAccess::fence() ;
+  // 现在线程从wait状态唤醒了, 需要将它移出等待集合waitset
   int WasOnWaitSet = 0 ;
   if (ESelf->Notified == 0) {
     Thread::muxAcquire (_WaitLock, "wait:WaitLock:remove") ;
@@ -829,15 +832,19 @@ int Monitor::IWait (Thread * Self, jlong timo) {
   }
 
   // Reentry phase - reacquire the lock
+  // 尝试重新获得锁
   if (WasOnWaitSet) {
     // ESelf was previously on the WaitSet but we just unlinked it above
     // because of a timeout.  ESelf is not resident on any list and is not OnDeck
     assert (_OnDeck != ESelf, "invariant") ;
+    // 如果self线程是因为wait超时而被唤醒, 那么它还在等待集合里面,
+    // 可直接获得锁
     ILock (Self) ;
   } else {
     // A prior notify() operation moved ESelf from the WaitSet to the cxq.
     // ESelf is now on the cxq, EntryList or at the OnDeck position.
     // The following fragment is extracted from Monitor::ILock()
+    // 否则self线程是因为其他线程通知而被唤醒, 尝试抢锁, 抢不到就阻塞等待
     for (;;) {
       if (_OnDeck == ESelf && TrySpin(Self)) break ;
       ParkCommon (ESelf, 0) ;
@@ -845,7 +852,7 @@ int Monitor::IWait (Thread * Self, jlong timo) {
     assert (_OnDeck == ESelf, "invariant") ;
     _OnDeck = NULL ;
   }
-
+  // 醒来后可继续执行的线程必须抢到了外部锁
   assert (ILocked(), "invariant") ;
   return WasOnWaitSet != 0 ;        // return true IFF timeout
 }

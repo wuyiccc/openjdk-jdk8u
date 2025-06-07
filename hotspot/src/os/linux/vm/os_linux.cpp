@@ -4537,13 +4537,13 @@ static void do_resume(OSThread* osthread) {
 
 ////////////////////////////////////////////////////////////////////////////////
 // interrupt support
-
+// 线程中断支持
 void os::interrupt(Thread* thread) {
   assert(Thread::current() == thread || Threads_lock->owned_by_self(),
     "possibility of dangling Thread pointer");
 
   OSThread* osthread = thread->osthread();
-
+  // 如果线程没有处于中断状态, 调用ParkEvent::unpark()通知睡眠线程中断
   if (!osthread->interrupted()) {
     osthread->set_interrupted(true);
     // More than one thread can get here with the same value of osthread,

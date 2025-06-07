@@ -1167,10 +1167,13 @@ void frame::oops_do_internal(OopClosure* f, CLDClosure* cld_f, CodeBlobClosure* 
   }
 #endif
   if (is_interpreted_frame()) {
+  // 解释器栈帧
     oops_interpreted_do(f, cld_f, map, use_interpreter_oop_map_cache);
   } else if (is_entry_frame()) {
+    // 调用起始栈帧
     oops_entry_do(f, map);
   } else if (CodeCache::contains(pc())) {
+    // 编译后代码栈帧
     oops_code_blob_do(f, cf, map);
 #ifdef SHARK
   } else if (is_fake_stub_frame()) {

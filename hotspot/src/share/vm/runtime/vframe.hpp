@@ -53,8 +53,12 @@
 // 栈帧的封装
 class vframe: public ResourceObj {
  protected:
+  // 物理栈帧
   frame        _fr;      // Raw frame behind the virtual frame.
+  // callee-saved寄存器 被调用者保存的寄存器
+  // called-saved保存了调用者的栈底指针rbp/ebp
   RegisterMap  _reg_map; // Register map for the raw frame (used to handle callee-saved registers).
+  // 栈帧所属的线程
   JavaThread*  _thread;  // The thread owning the raw frame.
 
   vframe(const frame* fr, const RegisterMap* reg_map, JavaThread* thread);
@@ -102,7 +106,7 @@ class vframe: public ResourceObj {
 #endif
 };
 
-
+// 基于javaFrame, 又细分了解释器栈帧和编译代码栈帧
 class javaVFrame: public vframe {
  public:
   // JVM state

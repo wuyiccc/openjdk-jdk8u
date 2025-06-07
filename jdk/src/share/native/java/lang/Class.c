@@ -50,7 +50,7 @@ extern jboolean VerifyFixClassname(char *utf_name);
 #define CTR "Ljava/lang/reflect/Constructor;"
 #define PD  "Ljava/security/ProtectionDomain;"
 #define BA  "[B"
-
+// jni native方法与java层面native定义之间的对应关系
 static JNINativeMethod methods[] = {
     {"getName0",         "()" STR,          (void *)&JVM_GetClassName},
     {"getSuperclass",    "()" CLS,          NULL},
@@ -83,7 +83,8 @@ static JNINativeMethod methods[] = {
 #undef MHD
 #undef CTR
 #undef PD
-
+// 当类加载的时候, 虚拟机调用静态代码Class.registerNatives方法
+// 然后调用到这里, 注册native方法之间的对应关系
 JNIEXPORT void JNICALL
 Java_java_lang_Class_registerNatives(JNIEnv *env, jclass cls)
 {

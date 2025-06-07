@@ -687,11 +687,13 @@ bool Method::is_klass_loaded(int refinfo_index, bool must_be_resolved) const {
 void Method::set_native_function(address function, bool post_event_flag) {
   assert(function != NULL, "use clear_native_function to unregister natives");
   assert(!is_method_handle_intrinsic() || function == SharedRuntime::native_method_throw_unsatisfied_link_error_entry(), "");
+  // 返回method之后的位置
   address* native_function = native_function_addr();
 
   // We can see racers trying to place the same native function into place. Once
   // is plenty.
   address current = *native_function;
+  // 如果已经注册过, 那么就返回
   if (current == function) return;
   if (post_event_flag && JvmtiExport::should_post_native_method_bind() &&
       function != NULL) {
@@ -704,6 +706,7 @@ void Method::set_native_function(address function, bool post_event_flag) {
     // post the bind event, and possible change the bind function
     JvmtiExport::post_native_method_bind(this, &function);
   }
+  // 否则将native方法入口地址写到method之后的位置
   *native_function = function;
   // This function can be called more than once. We must make sure that we always
   // use the latest registered method -> check if a stub already has been generated.

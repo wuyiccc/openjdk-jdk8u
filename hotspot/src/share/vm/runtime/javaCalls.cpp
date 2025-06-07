@@ -391,6 +391,10 @@ void JavaCalls::call_helper(JavaValue* result, methodHandle* m, JavaCallArgument
   }
 
   // do call
+  // 严格来说call_helper并没有做方法调用,
+  // 它只是检查方法是否需要编译, 验证参数是否正确等等,
+  // 最终它会跳转到函数指针 _call_stub_entry处
+  // 把方法调用这件事又转交给_call_stub_entry
   { JavaCallWrapper link(method, receiver, result, CHECK);
     { HandleMark hm(thread);  // HandleMark used by HandleMarkCleaner
 

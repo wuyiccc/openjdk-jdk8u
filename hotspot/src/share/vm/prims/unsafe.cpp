@@ -602,7 +602,7 @@ UNSAFE_ENTRY(jobject, Unsafe_AllocateInstance(JNIEnv *env, jobject unsafe, jclas
     return env->AllocObject(cls);
   }
 UNSAFE_END
-
+// unsafe.allocateMemory实现
 UNSAFE_ENTRY(jlong, Unsafe_AllocateMemory(JNIEnv *env, jobject unsafe, jlong size))
   UnsafeWrapper("Unsafe_AllocateMemory");
   size_t sz = (size_t)size;

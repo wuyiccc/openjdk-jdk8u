@@ -693,7 +693,7 @@ void InterpreterMacroAssembler::remove_activation(
 //      rscratch1, rscratch2 (scratch regs)
 void InterpreterMacroAssembler::lock_object(Register lock_reg) {
   assert(lock_reg == c_rarg1, "The argument is only for looks. It must be c_rarg1");
-
+  // 如果强制使用重量级锁, lock_object就不做优化了
   if (UseHeavyMonitors) {
     call_VM(noreg,
             CAST_FROM_FN_PTR(address, InterpreterRuntime::monitorenter),
@@ -713,7 +713,7 @@ void InterpreterMacroAssembler::lock_object(Register lock_reg) {
 
     // Load object pointer into obj_reg %c_rarg3
     movptr(obj_reg, Address(lock_reg, obj_offset));
-
+    // 如果开启偏向锁优化优化且偏向加锁成功, 跳转到done, 否则跳转到slow_case使用重量级锁
     if (UseBiasedLocking) {
       biased_locking_enter(lock_reg, obj_reg, swap_reg, rscratch1, false, done, &slow_case);
     }
@@ -758,7 +758,7 @@ void InterpreterMacroAssembler::lock_object(Register lock_reg) {
                  ExternalAddress((address) BiasedLocking::fast_path_entry_count_addr()));
     }
     jcc(Assembler::zero, done);
-
+    // 执行重量级锁
     bind(slow_case);
 
     // Call the runtime routine for slow case

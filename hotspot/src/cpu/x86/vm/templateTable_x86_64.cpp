@@ -618,6 +618,7 @@ void TemplateTable::index_check(Register array, Register index) {
     assert(rbx != array, "different registers");
     __ movl(rbx, index);
   }
+  // 抛出数组越界异常
   __ jump_cc(Assembler::aboveEqual,
              ExternalAddress(Interpreter::_throw_ArrayIndexOutOfBoundsException_entry));
 }
@@ -627,6 +628,7 @@ void TemplateTable::iaload() {
   __ pop_ptr(rdx);
   // eax: index
   // rdx: array
+  // 数组越界检查
   index_check(rdx, rax); // kills rbx
   __ movl(rax, Address(rdx, rax,
                        Address::times_4,

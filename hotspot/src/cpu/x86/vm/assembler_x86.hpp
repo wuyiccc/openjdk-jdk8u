@@ -181,9 +181,12 @@ class Address VALUE_OBJ_CLASS_SPEC {
   }
 
  private:
+  // 标记基址
   Register         _base;
+
   Register         _index;
   ScaleFactor      _scale;
+  // 表示偏移量
   int              _disp;
   RelocationHolder _rspec;
 

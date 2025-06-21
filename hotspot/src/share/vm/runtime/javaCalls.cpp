@@ -397,16 +397,27 @@ void JavaCalls::call_helper(JavaValue* result, methodHandle* m, JavaCallArgument
   // 把方法调用这件事又转交给_call_stub_entry
   { JavaCallWrapper link(method, receiver, result, CHECK);
     { HandleMark hm(thread);  // HandleMark used by HandleMarkCleaner
-
+      // call_stub() 函数调用返回的是一个函数指针, 这个函数指针指向的是一个函数的地址信息
       StubRoutines::call_stub()(
+        // 连接器
         (address)&link,
         // (intptr_t*)&(result->_value), // see NOTE above (compiler problem)
+        // 函数返回地址
         result_val_address,          // see NOTE above (compiler problem)
+        // 函数返回类型
         result_type,
+        // jvm内部所表示的java方法对象
         method(),
+        // jvm调用java方法的例程入口,
+        // jvm内部每一段例程都是在jvm启动过程中预先生成好的一段机器指令,
+        // 要调用java方法, 都必须经过本例程, 即需要先执行这段机器指令,
+        // 然后才能跳转到java方法字节码所对应的机器指令去执行
         entry_point,
+        // java方法的入参集合
         args->parameters(),
+        // java方法的入参数量
         args->size_of_parameters(),
+        // 当前线程对象
         CHECK
       );
 

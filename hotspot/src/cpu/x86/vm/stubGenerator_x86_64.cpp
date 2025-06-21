@@ -4155,7 +4155,7 @@ class StubGenerator: public StubCodeGenerator {
     // stubRoutines.hpp.
 
     StubRoutines::_forward_exception_entry = generate_forward_exception();
-
+    // _call_stub_entry函数指针初始化
     StubRoutines::_call_stub_entry =
       generate_call_stub(StubRoutines::_call_stub_return_address);
 

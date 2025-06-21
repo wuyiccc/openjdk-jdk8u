@@ -2989,7 +2989,9 @@ void MacroAssembler::eden_allocate(Register obj,
 }
 
 void MacroAssembler::enter() {
+  // 存储调用方的栈基地址
   push(rbp);
+  // rbp栈基寄存器存储调用方的栈顶
   mov(rbp, rsp);
 }
 

@@ -46,6 +46,7 @@ PRAGMA_FORMAT_MUTE_WARNINGS_FOR_GCC
 
 ConstantPool* ConstantPool::allocate(ClassLoaderData* loader_data, int length, TRAPS) {
   // Tags are RW but comment below applies to tags also.
+  // 这里申请了一个tags数组, 独立在ConstantPool分配的区域之外
   Array<u1>* tags = MetadataFactory::new_writeable_array<u1>(loader_data, length, 0, CHECK_NULL);
 
   int size = ConstantPool::size(length);

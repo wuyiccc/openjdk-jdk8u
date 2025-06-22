@@ -254,7 +254,9 @@ class ConstantPool : public Metadata {
 
   // For temporary use while constructing constant pool
   void klass_index_at_put(int which, int name_index) {
+    // 存了一份数据在tags自己的存储区域
     tag_at_put(which, JVM_CONSTANT_ClassIndex);
+    // 存了一份名字在constantPool后面的实例数据区域
     *int_at_addr(which) = name_index;
   }
 
@@ -315,6 +317,7 @@ class ConstantPool : public Metadata {
   void symbol_at_put(int which, Symbol* s) {
     assert(s->refcount() != 0, "should have nonzero refcount");
     tag_at_put(which, JVM_CONSTANT_Utf8);
+    // 对于字符串的存储, 这里仅仅存储指向字符串符号表的指针的值
     *symbol_at_addr(which) = s;
   }
 
@@ -335,6 +338,8 @@ class ConstantPool : public Metadata {
 
   void method_at_put(int which, int class_index, int name_and_type_index) {
     tag_at_put(which, JVM_CONSTANT_Methodref);
+    // name_and_type_index 与 class_index 实际每个只占用2字节, 根据tags的length申请的实例区域
+    // 是 字长 * length, 所以在32位的机器下, 这里有足够大的4字节存放这两个数据的值
     *int_at_addr(which) = ((jint) name_and_type_index<<16) | class_index;
   }
 

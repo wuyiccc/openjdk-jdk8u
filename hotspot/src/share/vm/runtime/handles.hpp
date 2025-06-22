@@ -123,7 +123,7 @@ class Handle VALUE_OBJ_CLASS_SPEC {
     type##Oop    operator -> () const            { return non_null_obj(); } \
   };
 
-
+// oop handle体系定义
 DEF_HANDLE(instance         , is_instance         )
 DEF_HANDLE(array            , is_array            )
 DEF_HANDLE(objArray         , is_objArray         )
@@ -169,7 +169,7 @@ DEF_HANDLE(typeArray        , is_typeArray        )
     bool    not_null() const                     { return _value != NULL; } \
   };
 
-
+// metadata handle 体系定义
 DEF_METADATA_HANDLE(method, Method)
 DEF_METADATA_HANDLE(constantPool, ConstantPool)
 

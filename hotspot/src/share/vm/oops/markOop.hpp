@@ -344,6 +344,7 @@ class markOopDesc: public oopDesc {
 
   // Prototype mark for initialization
   static markOop prototype() {
+    // c++ 指针内建类型直接初始化赋初值, 并不是调用了构造函数
     return markOop( no_hash_in_place | no_lock_in_place );
   }
 

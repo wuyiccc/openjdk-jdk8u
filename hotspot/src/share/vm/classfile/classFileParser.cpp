@@ -1127,6 +1127,7 @@ Array<u2>* ClassFileParser::parse_fields(Symbol* class_name,
                                          u2* java_fields_count_ptr, TRAPS) {
   ClassFileStream* cfs = stream();
   cfs->guarantee_more(2, CHECK_NULL);  // length
+  // 获取java类域变量的数量
   u2 length = cfs->get_u2_fast();
   *java_fields_count_ptr = length;
 
@@ -1177,6 +1178,7 @@ Array<u2>* ClassFileParser::parse_fields(Symbol* class_name,
     cfs->guarantee_more(8, CHECK_NULL);  // access_flags, name_index, descriptor_index, attributes_count
 
     AccessFlags access_flags;
+    // 访问标识
     jint flags = cfs->get_u2_fast() & JVM_RECOGNIZED_FIELD_MODIFIERS;
     verify_legal_field_modifiers(flags, is_interface, CHECK_NULL);
     access_flags.set_flags(flags);

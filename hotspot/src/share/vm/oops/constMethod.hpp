@@ -232,7 +232,7 @@ private:
   u2                _method_idnum;               // unique identification number for the method within the class
                                                  // initially corresponds to the index into the methods array.
                                                  // but this may change with redefinition
-  // 栈的最大深度
+  // 栈的最大深
   u2                _max_stack;                  // Maximum number of entries on the expression stack
   // 本地变量表的最大深度
   u2                _max_locals;                 // Number of local variables used by this method

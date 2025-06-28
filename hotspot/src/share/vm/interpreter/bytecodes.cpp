@@ -278,7 +278,7 @@ int Bytecodes::compute_flags(const char* format, int more_flags) {
     has_size = this_size;
   }
 }
-
+// 字节码指令集格式定义
 void Bytecodes::initialize() {
   if (_is_initialized) return;
   assert(number_of_codes <= 256, "too many bytecodes");

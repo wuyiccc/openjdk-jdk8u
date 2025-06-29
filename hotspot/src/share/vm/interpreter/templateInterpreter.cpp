@@ -39,7 +39,7 @@ void TemplateInterpreter::initialize() {
          "dispatch table too small");
 
   AbstractInterpreter::initialize();
-
+  // 初始化模板表
   TemplateTable::initialize();
 
   // generate interpreter

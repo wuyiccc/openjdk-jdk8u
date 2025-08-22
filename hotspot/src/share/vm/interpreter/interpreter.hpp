@@ -119,6 +119,7 @@ class CodeletMark: ResourceMark {
     // initialize Codelet attributes
     _clet->initialize(description, bytecode);
     // create assembler for code generation
+    // 在解释器生成器中生成masm汇编器对象
     masm  = new InterpreterMacroAssembler(&_cb);
     _masm = &masm;
   }

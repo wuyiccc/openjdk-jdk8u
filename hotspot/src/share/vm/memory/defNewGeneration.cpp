@@ -561,7 +561,7 @@ HeapWord* DefNewGeneration::expand_and_allocate(size_t size,
   // We don't attempt to expand the young generation (but perhaps we should.)
   return allocate(size, is_tlab);
 }
-
+// 动态调整阈值
 void DefNewGeneration::adjust_desired_tenuring_threshold(GCTracer &tracer) {
   // Set the desired survivor size to half the real survivor space
   _tenuring_threshold =

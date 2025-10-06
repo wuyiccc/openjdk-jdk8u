@@ -64,7 +64,7 @@ class G1CodeBlobClosure : public CodeBlobClosure {
     }
 
     void do_oop(narrowOop* o) {
-      do_oop_work(o);
+      do_oop_work(o)
     }
 
     void set_nm(nmethod* nm) {

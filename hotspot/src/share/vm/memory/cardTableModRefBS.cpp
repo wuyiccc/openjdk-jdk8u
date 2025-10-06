@@ -123,6 +123,7 @@ void CardTableModRefBS::initialize() {
   // then add it to byte_map_base, i.e.
   //
   //   _byte_map = byte_map_base + (uintptr_t(low_bound) >> card_shift)
+  // 全局卡表空间赋值
   _byte_map = (jbyte*) heap_rs.base();
   byte_map_base = _byte_map - (uintptr_t(low_bound) >> card_shift);
   assert(byte_for(low_bound) == &_byte_map[0], "Checking start of map");

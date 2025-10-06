@@ -108,7 +108,7 @@ protected:
   void set_scanned_klass(Klass* k) { _scanned_klass = k; }
   template <class T> void do_klass_barrier(T* p, oop new_obj);
 };
-
+// 根据模板变量do_mark_object判断是普通ygc或者mixedgc之前的ygc
 template <G1Barrier barrier, G1Mark do_mark_object>
 class G1ParCopyClosure : public G1ParCopyHelper {
 private:

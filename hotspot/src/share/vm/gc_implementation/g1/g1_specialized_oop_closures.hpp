@@ -37,7 +37,9 @@ enum G1Barrier {
 };
 
 enum G1Mark {
+// 普通ygc
   G1MarkNone,
+// 并发标记之前的ygc
   G1MarkFromRoot,
   G1MarkPromotedFromRoot
 };
